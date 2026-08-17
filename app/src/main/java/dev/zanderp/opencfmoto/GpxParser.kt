@@ -11,7 +11,37 @@ data class GpxTrack(
     val name: String,
     val points: List<GpxPoint>,
     val waypoints: List<GpxPoint>,
-)
+) {
+    /**
+     * Flip the file order when the rider is clearly going the other way.
+     * Organic Maps / OsmAnd do this; we used to always follow the GPX as recorded.
+     */
+    fun orientedForRider(lat: Double, lon: Double, headingDeg: Float?): Pair<GpxTrack, Boolean> {
+        if (points.size < 3) return this to false
+        var nearest = 0
+        var best = Double.MAX_VALUE
+        for (i in points.indices) {
+            val d = GpxNav.haversineM(lat, lon, points[i].lat, points[i].lon)
+            if (d < best) {
+                best = d
+                nearest = i
+            }
+        }
+        val i = nearest.coerceIn(0, points.lastIndex - 1)
+        val fwd = GpxNav.bearingDeg(points[i].lat, points[i].lon, points[i + 1].lat, points[i + 1].lon)
+        val rev = (fwd + 180f) % 360f
+        var reverse = false
+        if (headingDeg != null) {
+            val alignFwd = kotlin.math.abs(GpxNav.normalizeDelta(headingDeg - fwd))
+            val alignRev = kotlin.math.abs(GpxNav.normalizeDelta(headingDeg - rev))
+            if (alignRev + 25f < alignFwd) reverse = true
+        }
+        val frac = nearest.toDouble() / points.lastIndex.toDouble()
+        if (!reverse && frac > 0.65 && headingDeg == null) reverse = true
+        if (!reverse) return this to false
+        return copy(points = points.asReversed()) to true
+    }
+}
 
 /**
  * Minimal GPX reader — tracks (`trkpt`), routes (`rtept`), and waypoints (`wpt`).

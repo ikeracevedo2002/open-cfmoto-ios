@@ -175,6 +175,10 @@ class AndroidAutoService : Service() {
         }
         // Only park for a real Wi-Fi outage — a dash-only drop with Wi-Fi still up is the prober's job.
         if (BikeWifi.currentNetwork == null) {
+            if (AppSettings.keepWifiAfterDisconnect(this)) {
+                wifiDownSince = 0L
+                return
+            }
             val now = System.currentTimeMillis()
             if (wifiDownSince == 0L) wifiDownSince = now
             else if (now - wifiDownSince > GRACE_MS) parkAa()
@@ -676,7 +680,7 @@ class AndroidAutoService : Service() {
         private const val STALL_MS = 8_000L            // no frames this long while STREAMING = stalled
         private const val ACTION_COOLDOWN_MS = 20_000L // min gap between forced reconnects
         private const val ERROR_COOLDOWN_MS = 20_000L  // min gap between re-arm attempts after ERROR
-        private const val GRACE_MS = 60_000L           // keep AA alive this long after Wi-Fi drops
+        private const val GRACE_MS = 180_000L          // SoftAP blinks; 60s was parking mid-ride
         private const val RESUME_STEADY_TIMEOUT_MS = 12_000L // wait for AA video before falling back
 
         /** Intent extra: MainActivity should re-project on open (BAL-safe resume after a park). */

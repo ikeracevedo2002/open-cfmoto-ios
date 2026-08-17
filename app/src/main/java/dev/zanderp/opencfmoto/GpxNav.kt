@@ -19,6 +19,8 @@ class GpxNav(
     val totalAscentM: Double
     /** Track index of each guidance step's maneuver point (parallel to [steps]). */
     private val stepIndex: IntArray
+    /** Last snapped index — stay on the forward leg instead of hopping to a return loop. */
+    private var cursor = 0
 
     init {
         val n = track.points.size
@@ -112,9 +114,11 @@ class GpxNav(
         units: MapUnits = MapUnits.METRIC,
     ): Progress? {
         if (track.points.isEmpty()) return null
-        var bestI = 0
+        val n = track.points.size
+        val searchFrom = (cursor - 8).coerceAtLeast(0)
+        var bestI = cursor.coerceIn(0, n - 1)
         var bestD = Double.MAX_VALUE
-        for (i in track.points.indices) {
+        for (i in searchFrom until n) {
             val p = track.points[i]
             val d = haversineM(lat, lon, p.lat, p.lon)
             if (d < bestD) {
@@ -122,6 +126,20 @@ class GpxNav(
                 bestI = i
             }
         }
+        if (bestD > 80.0) {
+            for (i in track.points.indices) {
+                val p = track.points[i]
+                val d = haversineM(lat, lon, p.lat, p.lon)
+                if (d < bestD) {
+                    bestD = d
+                    bestI = i
+                }
+            }
+        } else if (bestI < cursor) {
+            val backM = cumDistM[cursor] - cumDistM[bestI]
+            if (backM > 40.0) bestI = cursor
+        }
+        cursor = bestI
         // Project onto the adjacent segments so the puck slides along the road (no hopping
         // between sparse points, no phantom "ahead/behind" jumps).
         val snap = snapToRoute(lat, lon, bestI)

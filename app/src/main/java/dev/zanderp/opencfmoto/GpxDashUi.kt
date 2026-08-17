@@ -76,7 +76,7 @@ class GpxDashUi(
             return false
         }
         val mode = GpxSession.mode
-        val track = GpxSession.trackFile?.let { f ->
+        var track = GpxSession.trackFile?.let { f ->
             runCatching { GpxParser.parse(f) }.getOrElse { err ->
                 log("[GPX] parse failed: $err"); null
             }
@@ -85,6 +85,7 @@ class GpxDashUi(
             log("[GPX] no track")
             return false
         }
+        var gpxOriented = mode != GpxSession.Mode.GPX
 
         val voiceLocal = GpxVoice(context).also { voice = it }
         var units = MapPrefs.units(context)
@@ -2235,8 +2236,20 @@ class GpxDashUi(
                 chipSpeedUnit?.text = GpxNav.speedUnitLabel(units)
                 rideStats.onLocation(loc.latitude, loc.longitude, loc.speed)
                 val alt = if (loc.hasAltitude()) loc.altitude else null
-                val nav = liveNav
                 val dest = liveDest
+                if (liveMode == GpxSession.Mode.GPX && !gpxOriented && track != null) {
+                    gpxOriented = true
+                    val heading = if (loc.hasBearing() && loc.speed > 1.0f) loc.bearing else null
+                    val (oriented, flipped) = track!!.orientedForRider(loc.latitude, loc.longitude, heading)
+                    if (flipped) {
+                        track = oriented
+                        liveNav = GpxNav(oriented)
+                        log("[GPX] reversed track to match rider heading")
+                        if (voiceOn) voiceLocal.speak("Following the track the other way")
+                        refreshTitle()
+                    }
+                }
+                val nav = liveNav
                 if (liveMode == GpxSession.Mode.NAV_TO && dest != null && nav == null && !osrmRequested) {
                     osrmRequested = true
                     requestOsrm(loc, "start")

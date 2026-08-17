@@ -99,4 +99,34 @@ class GpxNavTest {
         // Facing opposite → turn around.
         assertEquals(GpxNav.TurnDir.UTURN, GpxNav.dirToFace(0f, 180f))
     }
+
+    @Test
+    fun orientsTrackOppositeWhenHeadingIsReverse() {
+        val pts = listOf(
+            GpxPoint(0.0, 0.0),
+            GpxPoint(0.01, 0.0),
+            GpxPoint(0.02, 0.0),
+        )
+        val track = GpxTrack("out", pts, emptyList())
+        val (oriented, flipped) = track.orientedForRider(0.02, 0.0, headingDeg = 180f)
+        assertTrue(flipped)
+        assertEquals(0.02, oriented.points.first().lat, 1e-9)
+        assertEquals(0.0, oriented.points.last().lat, 1e-9)
+    }
+
+    @Test
+    fun progressDoesNotHopBackwardOnNearbyReturnLeg() {
+        val pts = listOf(
+            GpxPoint(0.0, 0.0),
+            GpxPoint(0.01, 0.0),
+            GpxPoint(0.02, 0.0),
+            GpxPoint(0.01, 0.0002),
+            GpxPoint(0.0, 0.0002),
+        )
+        val nav = GpxNav(GpxTrack("out-and-back", pts, emptyList()))
+        val mid = nav.progress(0.01, 0.0, speedMps = 8f)!!
+        assertEquals(1, mid.nearestIndex)
+        val still = nav.progress(0.01, 0.00005, speedMps = 8f)!!
+        assertTrue(still.nearestIndex <= 2)
+    }
 }
