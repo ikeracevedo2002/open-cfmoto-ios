@@ -704,6 +704,8 @@ and built the Android Auto plumbing before us. Huge thanks to:
   / stitch, reconnect polish, and 800NK Advanced geometry.
 - **[eugen0309/open-cfmoto](https://github.com/eugen0309/open-cfmoto)** — Wi‑Fi Direct (`BikeWifiP2p`)
   and CL‑C450 path.
+- **[Martin Escudero](https://github.com/martinescudero)** — Android Auto 17.4+ head-unit-server
+  dial-out, so current Play Store Android Auto works again.
 - **[headunit-revived](https://github.com/andreknieriem/headunit-revived)** by *andreknieriem* — the
   Android Auto (AAP) receiver foundation.
 
