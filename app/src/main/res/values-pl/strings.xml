@@ -2,7 +2,7 @@
 <!-- Draft + terminology pass — improve via PR: docs/TRANSLATIONS.md -->
 <resources>
     <string name="about_copyright">© 2026 Aleksandru</string>
-    <string name="about_copyright_body">Utrzymywany przez Alexandru (zanderp). Wolne oprogramowanie na licencji GNU AGPL v3 lub nowszej — zobacz LICENCJA i INFORMACJE w repozytorium, aby zapoznać się z pełnym tekstem dotyczącym praw autorskich i autorstwa.</string>
+    <string name="about_copyright_body">Utrzymywany przez Alexandru (zanderp). Wolne oprogramowanie na licencji GNU AGPL v3 lub nowszej — zobacz LICENSE i NOTICE w repozytorium, aby zapoznać się z pełnym tekstem dotyczącym praw autorskich i autorstwa.</string>
     <string name="about_license_body">Możesz używać, studiować, udostępniać i modyfikować tę aplikację na podstawie umowy AGPL. Jeśli rozpowszechniasz zmodyfikowaną wersję (w tym jako usługę sieciową), musisz zaoferować kompletne odpowiednie źródło w ramach tej samej licencji.</string>
     <string name="about_credits">Zbudowany w oparciu o linię społeczności open-cfmoto:\n\n• dcoletto / coletz — oryginalne dzieło QR i EasyConn\n• BojanJ — integracja odbiornika Android Auto\n• richardbizik — obsługa 1000 MT‑X\n• ionutradu252 / open-cflink — sterowanie na kierownicy, marginesy, ponowne połączenie i polerowanie\n• eugen0309 — ścieżka Wi-Fi Direct / CL-C450\n• odnowiona jednostka główna — stos projekcyjny Android Auto (AGPL)\n\nI wszyscy, którzy testowali motocykly, udostępniali dzienniki i zgłaszali problemy.</string>
     <string name="about_disclaimer">OpenCfMoto to niezależny projekt społecznościowy. Nie jest powiązany, wspierany ani sponsorowany przez CFMOTO, Carbit, Google, Android Auto ani inne marki, które licencjonują kreski w stylu EasyConnect (w tym Voge, Zontes, Moto Morini, Benelli, QJ Motor, Morbidelli i Longjia). CFMOTO, MotoPlay, EasyConn, Carbit, Android, Android Auto i powiązane znaki są znakami towarowymi odpowiednich właścicieli. Korzystasz na własne ryzyko — ustal trasę przed jazdą.</string>
@@ -27,7 +27,7 @@
     <string name="about_source_on_github">Źródło na GitHubie</string>
     <string name="about_license">Licencja</string>
     <string name="about_gnu_affero_general_public_license_v3_or_later">GNU Affero General Public License v3 lub nowsza</string>
-    <string name="about_view_license_notice">Zobacz LICENCJĘ I INFORMACJE</string>
+    <string name="about_view_license_notice">Zobacz LICENSE i NOTICE</string>
     <string name="about_credits_2">Współautorzy</string>
     <string name="about_disclaimer_2">Zastrzeżenie</string>
     <string name="about_done">Zamknij</string>

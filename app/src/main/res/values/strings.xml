@@ -281,6 +281,7 @@
     <string name="setup_app_settings">App settings</string>
     <string name="setup_3_head_unit_mode_in_android_auto">3. Head-unit mode in Android Auto</string>
     <string name="setup_in_android_auto_settings_tap_version_10_times_to">In Android Auto settings, tap &quot;Version&quot; ~10 times to unlock Developer settings, then turn ON &quot;Add new cars to Android Auto&quot; / &quot;Unknown sources&quot;. (Can\'t be checked automatically.)</string>
+    <string name="setup_aa_17_4_start_head_unit_server">On Android Auto 17.4+, also open the ⋮ Developer settings menu and tap Start head unit server before you Connect. You may need this again after a reboot or an Android Auto update. Do not uninstall Android Auto updates.</string>
     <string name="setup_android_auto_settings">Android Auto settings</string>
     <string name="setup_screen_display">Screen &amp; display</string>
     <string name="setup_video_quality">Video quality</string>

@@ -91,7 +91,7 @@ CFMoto · Voge · Morini · Morbidelli · QJ Motor · GOES and more — communit
   **[Dash showcase](docs/SHOWCASE.md)**. Touch dashes use the screen; non‑touch / focus-mode bikes
   use **Controls** + handlebar buttons. Unknown dashes are learned after the first connect.
 - **An Android phone**, Android **10 or newer**.
-- **Google Android Auto** set up once (see [step 3](#3-one-time-android-auto-setup)).
+- **Google Android Auto** (see [step 3](#3-android-auto-setup); 17.4+ also needs **Start head unit server**).
 - **OpenCfMoto** from [Releases](https://github.com/zanderp/open-cfmoto/releases/latest) (sideload).
 - A **mobile-data plan** is recommended: the phone joins the bike's Wi‑Fi, so maps/traffic use cellular.
 
@@ -178,7 +178,7 @@ The app isn't on the Play Store — you sideload the APK.
 > 💡 The **Setup** screen has an *All granted* button that checks every permission at once and
 > deep-links to system settings for anything missing.
 
-### 3. One-time Android Auto setup
+### 3. Android Auto setup
 
 Android Auto must be installed and allowed to start in "self / head-unit" mode.
 
@@ -188,8 +188,13 @@ Android Auto must be installed and allowed to start in "self / head-unit" mode.
    times** to unlock Developer settings.
 3. In the **⋮ Developer settings** menu, turn **on** *"Add new cars to Android Auto"* / *"Unknown
    sources"* (wording varies by version).
+4. **Android Auto 17.4+:** in that same **⋮** menu, tap **Start head unit server**, then return to
+   OpenCfMoto and tap **Connect**. The app dials that server automatically. You may need to start
+   the server again after a reboot or an Android Auto update.
 
-You only do this once.
+Do **not** uninstall Android Auto updates — that is no longer needed and is the wrong fix.
+
+Steps 1–3 are once. Step 4 is once per reboot / Android Auto update on 17.4+.
 
 ### 4. Connect and ride
 
@@ -629,7 +634,7 @@ OpenCfMoto routes and **Connect** for Maps/Waze Android Auto.
 | App reports **VPN** blocking bike Wi‑Fi | Always-on VPN with “Block connections without VPN” returns EPERM when pinning sockets to the bike AP. Turn the VPN off for the ride, disable that kill-switch, or allow LAN / local network in the VPN app — then Connect again. |
 | Dash stays **black** after connecting | Tap **Stop**, then **Connect** / **Scan bike** again. Make sure the dash is on its phone-connection screen. |
 | **No Wi‑Fi dialog** appears | Confirm the Location permission is granted; move the phone next to the bike; tap **Stop** and retry. Some phones show the dialog behind Android Auto — swipe back to OpenCfMoto. |
-| **Android Auto never starts** | Re-check [step 3](#3-one-time-android-auto-setup) (developer mode + unknown sources). |
+| **Android Auto never starts** | On AA 17.4+: open Android Auto → tap Version 10× → ⋮ → **Start head unit server**, then Connect. Also re-check [step 3](#3-android-auto-setup) (developer mode + unknown sources). Do **not** uninstall Android Auto updates. |
 | **Auto-connect doesn't fire** | Ensure *Auto-connect* is On, the bike is paired, and its Wi‑Fi is in range; open the app or return to it to retry. |
 | Picture is **stretched / letterboxed** on an unknown bike | Reconnect once so it learns the dash shape, or set the orientation/size manually in Setup. |
 | Dash **froze** and didn't recover | With *Auto-recovery* on it should reconnect itself; otherwise tap **Stop** then **Connect**. |

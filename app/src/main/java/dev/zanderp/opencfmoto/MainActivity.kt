@@ -1200,13 +1200,13 @@ class MainActivity : AppCompatActivity() {
         LogBus.log("→ joining via Wi‑Fi Direct (P2P)")
         // How long to wait for a P2P group before failing over to SoftAP:
         //  - "P2P" remembered  → proven P2P device on this phone; give it the full window.
-        //  - SoftAP advertised → a working fallback exists, so bail fast (6s) when P2P is hopeless
+        //  - SoftAP advertised → a working fallback exists, so bail (12s) when P2P is hopeless
         //    (some phones ERROR on every join attempt in <1s but the group never forms).
         //  - otherwise (P2P-only) → full window; there is nothing to fall back to.
         val known = BikeMemory.winningTransport(this, qr.ssid)
         val p2pTimeout = when {
             known == "P2P" -> BikeWifiP2p.CONNECT_TIMEOUT_MS
-            qr.supportsAp && qr.pwd.isNotEmpty() -> 6_000L
+            qr.supportsAp && qr.pwd.isNotEmpty() -> 12_000L
             else -> BikeWifiP2p.CONNECT_TIMEOUT_MS
         }
         BikeWifiP2p.connect(

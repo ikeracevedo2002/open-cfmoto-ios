@@ -2,7 +2,7 @@
 <!-- Draft + terminology pass — improve via PR: docs/TRANSLATIONS.md -->
 <resources>
     <string name="about_copyright">© 2026 Alexandru</string>
-    <string name="about_copyright_body">Spravuje Alexandru (zanderp). Volný software pod GNU AGPL v3 nebo novějším — viz LICENCE a UPOZORNĚNÍ v úložišti, kde najdete úplný text autorských práv a uvedení zdroje.</string>
+    <string name="about_copyright_body">Spravuje Alexandru (zanderp). Volný software pod GNU AGPL v3 nebo novějším — viz LICENSE a NOTICE v úložišti, kde najdete úplný text autorských práv a uvedení zdroje.</string>
     <string name="about_license_body">Tuto aplikaci můžete používat, studovat, sdílet a upravovat pod AGPL. Pokud redistribuujete upravenou verzi (včetně síťové služby), musíte nabídnout úplný odpovídající zdroj pod stejnou licencí.</string>
     <string name="about_credits">Postaveno na komunitní linii open-cfmoto:\n\n• dcoletto / coletz — originální QR &amp; EasyConn práce\n• BojanJ – integrace přijímače Android Auto\n• richardbizik — podpora 1000 MT-X\n• ionutradu252 / open-cflink – ovládání řídítek, okraje, opětovné připojení a vyleštění\n• eugen0309 — Wi-Fi Direct / CL-C450 cesta\n• Oživení hlavní jednotky — Android Auto Projection stack (AGPL)\n\nA všichni, kdo testovali kola, sdíleli protokoly a podávali problémy.</string>
     <string name="about_disclaimer">OpenCfMoto je nezávislý komunitní projekt. Není přidružena, podporována ani sponzorována společnostmi CFMOTO, Carbit, Google, Android Auto nebo jinými značkami, které licencují obrazovky ve stylu EasyConnect (včetně Voge, Zontes, Moto Morini, Benelli, QJ Motor, Morbidelli a Longjia). CFMOTO, MotoPlay, EasyConn, Carbit, Android, Android Auto a související značky jsou ochranné známky příslušných vlastníků. Používejte na vlastní nebezpečí – trasu si nastavte před jízdou.</string>
@@ -27,7 +27,7 @@
     <string name="about_source_on_github">Zdroj na GitHubu</string>
     <string name="about_license">Licence</string>
     <string name="about_gnu_affero_general_public_license_v3_or_later">GNU Affero General Public License v3 nebo novější</string>
-    <string name="about_view_license_notice">Zobrazit LICENCE A OZNÁMENÍ</string>
+    <string name="about_view_license_notice">Zobrazit LICENSE a NOTICE</string>
     <string name="about_credits_2">Poděkování</string>
     <string name="about_disclaimer_2">Právní prohlášení</string>
     <string name="about_done">Hotovo</string>

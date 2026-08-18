@@ -30,6 +30,10 @@ behavior, the actual data flow between components, and the Android Auto black-sc
    is often ignored too → **broadcast fallback 2**
    (`WifiBluetoothReceiver` / `START_WIRELESS_PROJECTION` with a BT MAC). MainActivity also
    re-triggers once after ~4.5s if AA video never arrives. This is normal, not a hard error.
+   On AA 17.4+ all three inbound pokes can fail (`WirelessStartupReceiver` disabled, activity not
+   exported). After ~4s `AaReceiver` dials **out** to gearhead's head unit server on
+   `127.0.0.1:5277` (every 2s × 20). The rider must tap **Start head unit server** in Android Auto
+   developer settings first. Do not tell riders to uninstall AA updates.
 4. Google AA connects to :5288 → AAP version + SSL handshake → video channel negotiated → AA H.264
    flows into `VideoDecoder`, which decodes into the compositor's input surface.
 5. When decode fps ≥ 25, `AaReceiver` fires `AaVideoBridge.onSteadyVideo` **once**.

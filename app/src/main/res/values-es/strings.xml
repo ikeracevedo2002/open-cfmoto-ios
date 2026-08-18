@@ -500,7 +500,7 @@
     <string name="conn_detail_connect_failed">Error de conexión: mira Registros o Compartir registros</string>
     <string name="conn_detail_auto_connect_failed">Error de conexión automática: mira Registros</string>
     <string name="conn_detail_need_bluetooth">Concede Dispositivos cercanos / Bluetooth y vuelve a tocar Conectar</string>
-    <string name="conn_detail_aa_not_started">Android Auto no se ha enganchado: abre una vez la aplicación de Android Auto. Si estás en la beta de AA 17.4: Ajustes → Aplicaciones → Android Auto → Desinstalar actualizaciones, y reintenta Conectar. SoftAP y Espejo siguen demostrando que el enlace Wi-Fi con la moto funciona.</string>
+    <string name="conn_detail_aa_not_started">Android Auto no se ha enganchado. En Android Auto 17.4+ Google bloqueó el arranque automático: abre Android Auto, toca Versión 10 veces, luego ⋮ → Start head unit server, y vuelve a Conectar. SoftAP y Espejo siguen demostrando que el enlace Wi-Fi con la moto funciona.</string>
     <string name="main_aa_need_nearby_title">Se necesitan los dispositivos cercanos</string>
     <string name="main_aa_need_nearby_message">Conectar con Android Auto necesita Dispositivos cercanos (Bluetooth) para que el teléfono pueda iniciar la proyección inalámbrica. Concede Dispositivos cercanos, enciende el Bluetooth y vuelve a tocar Conectar.\n\nEspejo y Mapa no lo necesitan.</string>
     <string name="main_aa_need_bt_on_message">Enciende el Bluetooth y vuelve a tocar Conectar. Conectar con Android Auto usa Bluetooth para iniciar la proyección inalámbrica en las versiones recientes de Android Auto.\n\nEspejo y Mapa no lo necesitan.</string>

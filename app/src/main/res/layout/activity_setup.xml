@@ -140,6 +140,15 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="13sp" />
 
+                <TextView
+                    android:id="@+id/step3_desc_17_4"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/setup_aa_17_4_start_head_unit_server"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/step3_btn"
                     style="@style/Widget.OpenCfMoto.Button.Tonal"
