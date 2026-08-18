@@ -1,25 +1,10 @@
 package dev.zanderp.opencfmoto
 
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.util.Calendar
-import java.util.TimeZone
 
 class DashClockTest {
-    @Test
-    fun millisSinceLocalMidnight_romeEvening() {
-        val zone = TimeZone.getTimeZone("Europe/Rome")
-        val cal = Calendar.getInstance(zone)
-        cal.set(2026, Calendar.AUGUST, 13, 20, 48, 57)
-        cal.set(Calendar.MILLISECOND, 276)
-        assertEquals(
-            (((20L * 60 + 48) * 60 + 57) * 1000) + 276,
-            DashClock.millisSinceLocalMidnight(cal.timeInMillis, zone),
-        )
-    }
-
     @Test
     fun nameLooksLikeDash_mlnAndSoftAp() {
         assertTrue(DashClock.nameLooksLikeDash("MLN05D250"))

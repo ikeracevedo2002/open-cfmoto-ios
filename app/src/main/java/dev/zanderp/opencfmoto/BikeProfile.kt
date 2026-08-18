@@ -294,9 +294,6 @@ private fun basePhoneClientInfo(huid: String?, phoneUuid: String, supportFunctio
         // 0x10601 aggressively (Zontes/Voge → 00:00) even when the cluster clock was already fine.
         // We still body-ack every inbound 0x10600 (see HuTimeSync) so Morini/QJ never see empty→1970.
         put("supportSyncCorrectTime", false)
-        // Bike CLIENT_INFO reports currentHUTime (often ms since its own midnight — 1970 00:xx).
-        // Echoing that keeps the broken clock. Send phone local ms-since-midnight instead.
-        put("currentHUTime", DashClock.millisSinceLocalMidnight())
         put("appVersionFingerPrint", "opencfmoto-poc")
     }
 
@@ -553,12 +550,6 @@ object Cfdl26PortraitProfile : BikeProfile {
             val ack = HuTimeSync.ack(frame.payload)
             log("[$tag] HU_TIME_SYNC len=${frame.payload.size} → ack 0x10601 mode=${ack.mode} time=${ack.stamp}")
             PxcFrame(PxcFrame.CMD_HU_TIME_SYNC_ACK, ack.payload).write(out)
-            return true
-        }
-        if (frame.cmd == PxcFrame.CMD_HU_QUERY_TIME) {
-            val ack = HuQueryTime.ack()
-            log("[$tag] HU_QUERY_TIME len=${frame.payload.size} → 0x10451 dateTime=${ack.dateTime}")
-            PxcFrame(PxcFrame.CMD_HU_QUERY_TIME_ACK, ack.payload).write(out)
             return true
         }
         // After CHECK_SN the CFDL26 unit sends a burst of JSON notify frames the older CFDL16 never

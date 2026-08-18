@@ -33,8 +33,6 @@ class PxcHandshake(
     /** Rate-limit HU_TIME_SYNC log lines (bike sends ~every 2s). */
     @Volatile private var lastHuTimeSyncLogAt: Long = 0L
     @Volatile private var huTimeSyncCount: Int = 0
-    /** X-Cape / Voge / Griffin never send 0x10600 — push one phone stamp after handshake. */
-    @Volatile private var pushedHuTime: Boolean = false
 
     /**
      * Called when the bike selects a PXC channel on a :10922 socket (CAR_CTRL or CAR_DATA).
@@ -71,9 +69,9 @@ class PxcHandshake(
                 // acks from the bike — nothing to do
             }
             // First-class: never empty-ack 0x10600 (→ 1970 / 00:00 on Morini/Voge/QJ).
-            // Handled here so it cannot regress via profile / uncommitted-only paths.
+            // Echo-only (2.0.10): do not push an unsolicited 0x10601 — Griffin / X-Cape / Voge
+            // ignore it or jump hours. 0x10450 stays on the profile unknown path (empty cmd+1).
             PxcFrame.CMD_HU_TIME_SYNC -> onHuTimeSync(tag, frame, out)
-            PxcFrame.CMD_HU_QUERY_TIME -> onHuQueryTime(tag, frame, out)
             else -> {
                 if (!profile.handleUnknownControl(tag, frame, out, log)) {
                     log("[$tag] cmd=0x${frame.cmd.toUInt().toString(16)} (${PxcFrame.nameOf(frame.cmd)}) " +
@@ -81,21 +79,6 @@ class PxcHandshake(
                 }
             }
         }
-    }
-
-    private fun onHuQueryTime(tag: String, frame: PxcFrame, out: java.io.OutputStream) {
-        val ack = HuQueryTime.ack()
-        PxcFrame(PxcFrame.CMD_HU_QUERY_TIME_ACK, ack.payload).write(out)
-        log("[$tag] HU_QUERY_TIME (0x10450) len=${frame.payload.size} → 0x10451 dateTime=${ack.dateTime}")
-        pushPhoneHuTime(tag, out, "after QUERY_TIME")
-    }
-
-    private fun pushPhoneHuTime(tag: String, out: java.io.OutputStream, reason: String) {
-        if (pushedHuTime) return
-        pushedHuTime = true
-        val ack = HuTimeSync.ack(ByteArray(0))
-        PxcFrame(PxcFrame.CMD_HU_TIME_SYNC_ACK, ack.payload).write(out)
-        log("[$tag] HU_TIME_SYNC push ($reason) → 0x10601 mode=${ack.mode} time=${ack.stamp}")
     }
 
     private fun onHuTimeSync(tag: String, frame: PxcFrame, out: java.io.OutputStream) {
@@ -153,7 +136,6 @@ class PxcHandshake(
         val reply = profile.buildClientInfoReply(json, carHuid, phoneUuid)
         log("[$tag] → CLIENT_INFO reply ${reply.toString().take(180)}…")
         PxcFrame(PxcFrame.CMD_CLIENT_INFO_RLY, reply.toString().toByteArray(Charsets.UTF_8)).write(out)
-        pushPhoneHuTime(tag, out, "after CLIENT_INFO")
     }
 
     private fun onCheckSn(tag: String, frame: PxcFrame, out: java.io.OutputStream) {
