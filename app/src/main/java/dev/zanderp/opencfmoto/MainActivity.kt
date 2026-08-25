@@ -236,7 +236,12 @@ class MainActivity : AppCompatActivity() {
                 if (AaVideoBridge.aaSessionLive || AaVideoBridge.aaDecoding) return@postDelayed
                 // Still no AA after retries — stop thrashing (bike SoftAP may already be up).
                 log("[AA] Android Auto never attached — stopping silent retry")
-                ConnectionState.set(Phase.ERROR, getString(R.string.conn_detail_aa_not_started))
+                val detail = if (AaVideoBridge.aaSessionSeen) {
+                    getString(R.string.conn_detail_aa_dropped)
+                } else {
+                    getString(R.string.conn_detail_aa_not_started)
+                }
+                ConnectionState.set(Phase.ERROR, detail)
             }, 18_000)
             // Kick off the Wi-Fi join right away, in parallel with AA boot.
             joinWifi(qr, gateOnAaSteady = true)

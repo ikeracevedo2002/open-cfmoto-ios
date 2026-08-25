@@ -37,6 +37,7 @@ object BikeLink {
     /** Wi‑Fi Direct path: no [Network], so the prober binds/probes with these overrides. */
     @Volatile private var p2pBindIp: Inet4Address? = null
     @Volatile private var p2pGatewayIp: Inet4Address? = null
+    @Volatile private var aaDropRetried = false
 
     /** Reset the gate at the start of a fresh Android Auto connection attempt. */
     @Synchronized
@@ -48,6 +49,18 @@ object BikeLink {
         proberStarted = false
         p2pBindIp = null
         p2pGatewayIp = null
+        aaDropRetried = false
+        AaVideoBridge.aaSessionSeen = false
+        // Leave the bike Network held, but unpin the process so AA can use 127.0.0.1.
+        appContext?.let { BikeWifi.unbindProcess(context = it) }
+    }
+
+    /** One extra self-mode trigger after AA attaches then dies before video is steady. */
+    @Synchronized
+    fun takeAaDropRetry(): Boolean {
+        if (aaDropRetried || aaVideoSteady) return false
+        aaDropRetried = true
+        return true
     }
 
     @Synchronized
@@ -78,6 +91,11 @@ object BikeLink {
         if (proberStarted || !aaVideoSteady || !networkReady) return
         val p = prober ?: return
         proberStarted = true
+        appContext?.let { ctx ->
+            if (BikeWifi.rebindProcessToBike(ctx)) {
+                LogBus.log("→ process bound to bike Wi-Fi (AA video is live)")
+            }
+        }
         LogBus.log("→ AA video + bike Wi-Fi both ready — starting EasyConn PXC flow …")
         ConnectionState.set(Phase.PXC_CONNECTING)
         appContext?.let { DashClockBle.start(it) }
