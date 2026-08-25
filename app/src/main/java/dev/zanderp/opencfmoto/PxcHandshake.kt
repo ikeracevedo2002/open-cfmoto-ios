@@ -33,6 +33,7 @@ class PxcHandshake(
     /** Rate-limit HU_TIME_SYNC log lines (bike sends ~every 2s). */
     @Volatile private var lastHuTimeSyncLogAt: Long = 0L
     @Volatile private var huTimeSyncCount: Int = 0
+    @Volatile private var clockLabBannerLogged: Boolean = false
 
     /**
      * Called when the bike selects a PXC channel on a :10922 socket (CAR_CTRL or CAR_DATA).
@@ -68,10 +69,10 @@ class PxcHandshake(
             PxcFrame.CMD_CHECK_SN_RESULT + 1 -> {
                 // acks from the bike — nothing to do
             }
-            // First-class: never empty-ack 0x10600 (→ 1970 / 00:00 on Morini/Voge/QJ).
-            // Echo-only (2.0.10): do not push an unsolicited 0x10601 — Griffin / X-Cape / Voge
-            // ignore it or jump hours. 0x10450 stays on the profile unknown path (empty cmd+1).
+            // Clock lab: knobs choose 0x10600 echo vs phone and 0x10451
+            // empty / Carbit / Zontes / no-ack. Defaults match Latest 2.0.13.
             PxcFrame.CMD_HU_TIME_SYNC -> onHuTimeSync(tag, frame, out)
+            PxcFrame.CMD_HU_QUERY_TIME -> onHuQueryTime(tag, frame, out)
             else -> {
                 if (!profile.handleUnknownControl(tag, frame, out, log)) {
                     log("[$tag] cmd=0x${frame.cmd.toUInt().toString(16)} (${PxcFrame.nameOf(frame.cmd)}) " +
@@ -81,14 +82,56 @@ class PxcHandshake(
         }
     }
 
+    private fun logClockLabBanner() {
+        if (clockLabBannerLogged) return
+        clockLabBannerLogged = true
+        val channel = lastClientInfo?.optString("channel")?.trim().orEmpty()
+        log(ClockLab.banner(channel.ifEmpty { null }))
+    }
+
     private fun onHuTimeSync(tag: String, frame: PxcFrame, out: java.io.OutputStream) {
-        val ack = HuTimeSync.ack(frame.payload)
+        logClockLabBanner()
+        val forcePhone = ClockLab.timeSync == ClockTimeSyncMode.PHONE
+        val ack = HuTimeSync.ack(frame.payload, forcePhone = forcePhone)
         PxcFrame(PxcFrame.CMD_HU_TIME_SYNC_ACK, ack.payload).write(out)
         val n = ++huTimeSyncCount
         val now = System.currentTimeMillis()
         if (n <= 3 || now - lastHuTimeSyncLogAt >= 30_000L) {
             lastHuTimeSyncLogAt = now
+            log("[CLOCK-LAB] HU_TIME_SYNC → ${ClockLab.timeSync.id}")
             log("[$tag] HU_TIME_SYNC #$n len=${frame.payload.size} → ack 0x10601 mode=${ack.mode} time=${ack.stamp}")
+        }
+    }
+
+    private fun onHuQueryTime(tag: String, frame: PxcFrame, out: java.io.OutputStream) {
+        logClockLabBanner()
+        val channel = lastClientInfo?.optString("channel")?.trim().orEmpty()
+        val mode = ClockLab.query
+        val reply = when (mode) {
+            ClockQueryMode.EMPTY -> "empty"
+            ClockQueryMode.CARBIT, ClockQueryMode.ZONTES -> "json"
+            ClockQueryMode.NO_ACK -> "no-ack"
+        }
+        log("[CLOCK-LAB] HU_QUERY_TIME len=${frame.payload.size} → 0x10451 $reply")
+        when (mode) {
+            ClockQueryMode.NO_ACK -> { /* tester: leave 0x10450 unanswered */ }
+            ClockQueryMode.EMPTY -> {
+                PxcFrame(PxcFrame.CMD_HU_QUERY_TIME_ACK, ByteArray(0)).write(out)
+                log("[$tag] HU_QUERY_TIME (0x10450) len=${frame.payload.size} " +
+                    "channel=${channel.ifEmpty { "-" }} → 0x10451 empty")
+            }
+            ClockQueryMode.CARBIT -> {
+                val ack = HuQueryTime.carbit()
+                PxcFrame(PxcFrame.CMD_HU_QUERY_TIME_ACK, ack.payload).write(out)
+                log("[$tag] HU_QUERY_TIME (0x10450) len=${frame.payload.size} channel=${channel.ifEmpty { "-" }} " +
+                    "→ 0x10451 carbit dateTime=${ack.dateTime}")
+            }
+            ClockQueryMode.ZONTES -> {
+                val ack = HuQueryTime.zontesOem()
+                PxcFrame(PxcFrame.CMD_HU_QUERY_TIME_ACK, ack.payload).write(out)
+                log("[$tag] HU_QUERY_TIME (0x10450) len=${frame.payload.size} channel=${channel.ifEmpty { "-" }} " +
+                    "→ 0x10451 zontes dateTime=${ack.dateTime} currentTime=${ack.currentTime} zone=${ack.timeZone}")
+            }
         }
     }
 
@@ -101,6 +144,7 @@ class PxcHandshake(
         lastClientInfo = json
         carHuid = json.optString("HUID").ifEmpty { json.optString("huid") }.ifEmpty { null }
         log("[$tag] carHuid=$carHuid HUName=${json.optString("HUName")} channel=${json.optString("channel")}")
+        logClockLabBanner()
 
         profile = BikeProfiles.select(json, log)
         val early = BikeProfileHolder.active
