@@ -137,6 +137,9 @@
     <string name="gpx_fast">Fast</string>
     <string name="gpx_fun">Fun</string>
     <string name="gpx_circuit">Circuit</string>
+    <string name="gpx_lap">Lap</string>
+    <string name="gpx_lap_stop">Stop</string>
+    <string name="gpx_lap_pass_sf">Pass start/finish</string>
     <string name="gpx_avoid_tolls">Avoid tolls</string>
     <string name="gpx_avoid_highways">Avoid highways</string>
     <string name="gpx_fun_circuit_length">Fun circuit length</string>
