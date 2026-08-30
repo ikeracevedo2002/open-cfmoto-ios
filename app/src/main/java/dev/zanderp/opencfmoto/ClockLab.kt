@@ -44,11 +44,19 @@ object ClockLab {
     @Volatile var query: ClockQueryMode = ClockQueryMode.EMPTY
     @Volatile var timeSync: ClockTimeSyncMode = ClockTimeSyncMode.ECHO
     @Volatile var bluetooth: Boolean = false
+    /** Stay associated after Stop — some dashes drop the clock when SoftAP/P2P dies. */
+    @Volatile var keepWifi: Boolean = false
 
-    fun applyFrom(query: ClockQueryMode, timeSync: ClockTimeSyncMode, bluetooth: Boolean) {
+    fun applyFrom(
+        query: ClockQueryMode,
+        timeSync: ClockTimeSyncMode,
+        bluetooth: Boolean,
+        keepWifi: Boolean = this.keepWifi,
+    ) {
         this.query = query
         this.timeSync = timeSync
         this.bluetooth = bluetooth
+        this.keepWifi = keepWifi
     }
 
     fun applyPreset(preset: ClockLabPreset) {
@@ -78,6 +86,7 @@ object ClockLab {
     fun banner(channel: String?): String {
         val ch = channel?.trim().orEmpty().ifEmpty { "-" }
         val bt = if (bluetooth) "on" else "off"
-        return "[CLOCK-LAB] query=${query.id} timeSync=${timeSync.id} bt=$bt channel=$ch"
+        val kw = if (keepWifi) "on" else "off"
+        return "[CLOCK-LAB] query=${query.id} timeSync=${timeSync.id} bt=$bt keepWifi=$kw channel=$ch"
     }
 }

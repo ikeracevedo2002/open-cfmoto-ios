@@ -706,6 +706,10 @@ and built the Android Auto plumbing before us. Huge thanks to:
   and CL‑C450 path.
 - **[Martin Escudero](https://github.com/martinescudero)** — Android Auto 17.4+ head-unit-server
   dial-out, so current Play Store Android Auto works again.
+- **[Glifaus](https://github.com/Glifaus)** — Wi‑Fi Direct keep-alive (PR #21).
+- **[sashop2001](https://github.com/sashop2001/APOpenCfMoto)** — AA DPI, Bluetooth Connect trigger,
+  Bulgarian strings.
+- **[Authoritt](https://github.com/Authoritt)** — vehicle-telemetry field notes (PR #29).
 - **[headunit-revived](https://github.com/andreknieriem/headunit-revived)** by *andreknieriem* — the
   Android Auto (AAP) receiver foundation.
 

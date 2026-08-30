@@ -8,14 +8,14 @@ import org.junit.Test
 class ClockLabTest {
     @Before
     fun resetDefaults() {
-        ClockLab.applyFrom(ClockQueryMode.EMPTY, ClockTimeSyncMode.ECHO, false)
+        ClockLab.applyFrom(ClockQueryMode.EMPTY, ClockTimeSyncMode.ECHO, false, keepWifi = false)
     }
 
     @Test
     fun defaultsMatchLatest() {
         assertEquals(ClockLabPreset.LATEST, ClockLab.matchingPreset())
         assertEquals(
-            "[CLOCK-LAB] query=empty timeSync=echo bt=off channel=-",
+            "[CLOCK-LAB] query=empty timeSync=echo bt=off keepWifi=off channel=-",
             ClockLab.banner(null),
         )
     }
@@ -42,11 +42,19 @@ class ClockLabTest {
     }
 
     @Test
+    fun presetLeavesKeepWifiAlone() {
+        ClockLab.keepWifi = true
+        ClockLab.applyPreset(ClockLabPreset.ZONTES)
+        assertEquals(true, ClockLab.keepWifi)
+        assertEquals(ClockLabPreset.ZONTES, ClockLab.matchingPreset())
+    }
+
+    @Test
     fun mixedKnobsHaveNoPreset() {
         ClockLab.applyFrom(ClockQueryMode.ZONTES, ClockTimeSyncMode.PHONE, true)
         assertNull(ClockLab.matchingPreset())
         assertEquals(
-            "[CLOCK-LAB] query=zontes timeSync=phone bt=on channel=21340",
+            "[CLOCK-LAB] query=zontes timeSync=phone bt=on keepWifi=off channel=21340",
             ClockLab.banner("21340"),
         )
     }

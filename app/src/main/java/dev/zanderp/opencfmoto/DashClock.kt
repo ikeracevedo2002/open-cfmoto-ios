@@ -16,6 +16,7 @@ internal object DashClock {
         "MLN", "ZM_", "ZM-", "VOGE", "CFMOTO", "QJ", "GRIFFIN", "MORINI",
         "XCAPE", "X-CAPE", "CARBIT", "EASYCONN", "YUNMO", "ALLTR",
         "MURTAS", "RRX",
+        "ZT", // Zontes dash BT name, e.g. ZT851066
         "P2P", "SOFTAP",
     )
 }

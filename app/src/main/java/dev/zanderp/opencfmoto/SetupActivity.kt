@@ -39,6 +39,7 @@ class SetupActivity : AppCompatActivity() {
     private lateinit var mirrorOrientDesc: TextView
     private lateinit var powerDesc: TextView
     private lateinit var resDesc: TextView
+    private lateinit var dpiDesc: TextView
     private lateinit var themeDesc: TextView
     private lateinit var dblTapDesc: TextView
     private lateinit var holdsDesc: TextView
@@ -76,6 +77,7 @@ class SetupActivity : AppCompatActivity() {
         mirrorOrientDesc = findViewById(R.id.mirror_orient_desc)
         powerDesc = findViewById(R.id.power_desc)
         resDesc = findViewById(R.id.res_desc)
+        dpiDesc = findViewById(R.id.dpi_desc)
         themeDesc = findViewById(R.id.theme_desc)
         dblTapDesc = findViewById(R.id.dbltap_desc)
         holdsDesc = findViewById(R.id.holds_desc)
@@ -118,6 +120,12 @@ class SetupActivity : AppCompatActivity() {
         findViewById<MaterialButton>(R.id.res_land_hd).setOnClickListener { setResolution(ResolutionMode.LANDSCAPE_HD) }
         findViewById<MaterialButton>(R.id.res_port_sd).setOnClickListener { setResolution(ResolutionMode.PORTRAIT_SD) }
         findViewById<MaterialButton>(R.id.res_port_hd).setOnClickListener { setResolution(ResolutionMode.PORTRAIT_HD) }
+        findViewById<MaterialButton>(R.id.dpi_auto).setOnClickListener { setAaDpi(null) }
+        findViewById<MaterialButton>(R.id.dpi_160).setOnClickListener { setAaDpi(160) }
+        findViewById<MaterialButton>(R.id.dpi_180).setOnClickListener { setAaDpi(180) }
+        findViewById<MaterialButton>(R.id.dpi_240).setOnClickListener { setAaDpi(240) }
+        findViewById<MaterialButton>(R.id.dpi_320).setOnClickListener { setAaDpi(320) }
+        findViewById<MaterialButton>(R.id.btn_bt_trigger).setOnClickListener { pickBtTrigger() }
         findViewById<MaterialButton>(R.id.theme_auto).setOnClickListener { setMapTheme(MapTheme.AUTO) }
         findViewById<MaterialButton>(R.id.theme_day).setOnClickListener { setMapTheme(MapTheme.DAY) }
         findViewById<MaterialButton>(R.id.theme_night).setOnClickListener { setMapTheme(MapTheme.NIGHT) }
@@ -294,6 +302,38 @@ class SetupActivity : AppCompatActivity() {
         toast(getString(R.string.setup_toast_resolution, getString(m.labelRes)))
     }
 
+    private fun setAaDpi(dpi: Int?) {
+        VideoPrefs.setDpiOverride(this, dpi)
+        refreshOptions()
+        toast(
+            if (dpi == null) getString(R.string.setup_aa_dpi_auto)
+            else getString(R.string.setup_aa_dpi) + ": $dpi",
+        )
+    }
+
+    private fun pickBtTrigger() {
+        val bonded = BluetoothHelper.bondedDevices(this)
+        val labels = mutableListOf(getString(R.string.setup_bt_trigger_none))
+        val macs = mutableListOf<String?>(null)
+        val names = mutableListOf<String?>(null)
+        for ((mac, name) in bonded) {
+            labels.add("$name ($mac)")
+            macs.add(mac)
+            names.add(name)
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.setup_bt_trigger_pick)
+            .setItems(labels.toTypedArray()) { _, which ->
+                AppSettings.setBtTrigger(this, macs[which], names[which])
+                refreshOptions()
+                val toast = if (macs[which] == null) getString(R.string.setup_bt_trigger_none)
+                else getString(R.string.setup_bt_trigger_set, names[which])
+                Toast.makeText(this, toast, Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     /** Map day/night applies live (no reconnect needed) — push it to any running AA session. */
     private fun setMapTheme(theme: MapTheme) {
         NightPrefs.setTheme(this, theme)
@@ -441,6 +481,13 @@ class SetupActivity : AppCompatActivity() {
             "\n" + getString(mirrorOrient.labelRes)
         powerDesc.text = getString(power.labelRes)
         resDesc.text = getString(res.labelRes)
+        val dpi = VideoPrefs.dpiOverride(this)
+        dpiDesc.text = if (dpi == null) getString(R.string.setup_aa_dpi_desc)
+        else getString(R.string.setup_aa_dpi) + ": $dpi"
+        val trigName = AppSettings.btTriggerName(this)
+        findViewById<MaterialButton>(R.id.btn_bt_trigger).text =
+            if (trigName != null) getString(R.string.setup_bt_trigger_set, trigName)
+            else getString(R.string.setup_bt_trigger_none)
         themeDesc.text = getString(theme.labelRes)
         dblTapDesc.text = getString(dbl.labelRes)
         holdsDesc.text = if (holdsOn) {
@@ -484,6 +531,14 @@ class SetupActivity : AppCompatActivity() {
             R.id.res_land_hd to ResolutionMode.LANDSCAPE_HD,
             R.id.res_port_sd to ResolutionMode.PORTRAIT_SD,
             R.id.res_port_hd to ResolutionMode.PORTRAIT_HD)
+        highlight<Int?>(
+            dpi,
+            R.id.dpi_auto to null,
+            R.id.dpi_160 to 160,
+            R.id.dpi_180 to 180,
+            R.id.dpi_240 to 240,
+            R.id.dpi_320 to 320,
+        )
         highlight(theme,
             R.id.theme_auto to MapTheme.AUTO,
             R.id.theme_day to MapTheme.DAY,

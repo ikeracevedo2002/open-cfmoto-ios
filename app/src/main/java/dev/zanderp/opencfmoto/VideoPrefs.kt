@@ -117,6 +117,8 @@ object VideoPrefs {
     private const val KEY_POWER = "power_mode"
     private const val KEY_RESOLUTION = "resolution_mode"
     private const val KEY_MIRROR_ORIENT = "mirror_orientation"
+    /** 0 = use the bike profile DPI. */
+    private const val KEY_AA_DPI = "aa_dpi_override"
 
     // Match panel aspect (AA margins): Auto uses DashMemory / profile panel size for every bike.
     private const val KEY_MATCH_MODE = "match_aspect_mode"
@@ -176,6 +178,18 @@ object VideoPrefs {
 
     fun setMirrorOrientation(ctx: Context, mode: MirrorOrientation) {
         BikeScope.putString(prefs(ctx), ctx, KEY_MIRROR_ORIENT, mode.name)
+    }
+
+    /** Rider DPI for Android Auto chrome, or null to keep the profile's density. */
+    fun dpiOverride(ctx: Context): Int? {
+        val v = BikeScope.getInt(prefs(ctx), ctx, KEY_AA_DPI, 0)
+        return if (v <= 0) null else v
+    }
+
+    fun setDpiOverride(ctx: Context, dpi: Int?) {
+        val v = dpi?.takeIf { it > 0 } ?: 0
+        BikeScope.putInt(prefs(ctx), ctx, KEY_AA_DPI, v)
+        BikeProfileHolder.aaDpiOverride = dpi?.takeIf { it > 0 }
     }
 
     /**

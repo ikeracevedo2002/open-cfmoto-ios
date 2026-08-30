@@ -45,6 +45,8 @@ object SettingsBackup {
         s.put("mirrorOrientation", VideoPrefs.mirrorOrientation(context).name)
         s.put("powerMode", VideoPrefs.power(context).name)
         s.put("resolutionMode", VideoPrefs.resolution(context).name)
+        s.put("aaDpiOverride", VideoPrefs.dpiOverride(context) ?: 0)
+        s.put("remotePad", RemotePad.enabled(context))
         s.put("profileOverride", ProfilePrefs.get(context).id)
         s.put("controlAa", ButtonMode.isControlAa(context))
         s.put("forceNonTouch", AppSettings.forceNonTouch(context))
@@ -130,6 +132,11 @@ object SettingsBackup {
         s.optString("resolutionMode").takeIf { it.isNotBlank() }?.let {
             runCatching { VideoPrefs.setResolution(context, ResolutionMode.valueOf(it)) }
         }
+        if (s.has("aaDpiOverride")) {
+            val dpi = s.optInt("aaDpiOverride", 0)
+            VideoPrefs.setDpiOverride(context, dpi.takeIf { it > 0 })
+        }
+        if (s.has("remotePad")) RemotePad.setEnabled(context, s.optBoolean("remotePad"))
         if (s.has("profileOverride")) {
             ProfilePrefs.set(context, ProfileOverride.byId(s.optString("profileOverride")))
         }

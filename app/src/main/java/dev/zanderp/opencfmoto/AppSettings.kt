@@ -32,6 +32,8 @@ object AppSettings {
     private const val KEY_CLOCK_LAB_QUERY = "clock_lab_query"
     private const val KEY_CLOCK_LAB_TIMESYNC = "clock_lab_timesync"
     private const val KEY_KEEP_WIFI = "keep_wifi_after_disconnect"
+    private const val KEY_BT_TRIGGER_MAC = "bt_trigger_mac"
+    private const val KEY_BT_TRIGGER_NAME = "bt_trigger_name"
 
     private fun prefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -119,8 +121,10 @@ object AppSettings {
      * Process is unbound so cellular/maps still work. Off by default.
      */
     fun keepWifiAfterDisconnect(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_KEEP_WIFI, false)
-    fun setKeepWifiAfterDisconnect(ctx: Context, on: Boolean) =
+    fun setKeepWifiAfterDisconnect(ctx: Context, on: Boolean) {
         prefs(ctx).edit().putBoolean(KEY_KEEP_WIFI, on).apply()
+        ClockLab.keepWifi = on
+    }
 
     fun anonymousTelemetry(ctx: Context): Boolean = prefs(ctx).getBoolean(KEY_ANON_TELEMETRY, true)
     fun setAnonymousTelemetry(ctx: Context, on: Boolean) {
@@ -129,14 +133,37 @@ object AppSettings {
     }
 
     /** Sync holder flags from prefs (call on process start / before connect). */
+    /**
+     * Bonded Bluetooth device that starts Connect when it ACL-connects. Null / blank = off.
+     * Not exported in [SettingsBackup] (device-specific).
+     */
+    fun btTriggerMac(ctx: Context): String? =
+        prefs(ctx).getString(KEY_BT_TRIGGER_MAC, null)?.takeIf { it.isNotBlank() }
+
+    fun btTriggerName(ctx: Context): String? =
+        prefs(ctx).getString(KEY_BT_TRIGGER_NAME, null)?.takeIf { it.isNotBlank() }
+
+    fun setBtTrigger(ctx: Context, mac: String?, name: String?) {
+        prefs(ctx).edit()
+            .putString(KEY_BT_TRIGGER_MAC, mac?.ifBlank { null })
+            .putString(KEY_BT_TRIGGER_NAME, name?.ifBlank { null })
+            .apply()
+    }
+
     fun applyToHolder(ctx: Context) {
         BikeProfileHolder.forceNonTouch = forceNonTouch(ctx)
         BikeProfileHolder.forceTouch = forceTouch(ctx)
+        BikeProfileHolder.aaDpiOverride = VideoPrefs.dpiOverride(ctx)
         LogBus.includeSecrets = includeSecretsInLogs(ctx)
         ProfilePrefs.applyToHolder(ctx)
         ButtonMap.ensureDefaultsMigrated(ctx)
         ScreenMargins.load(ctx)
-        ClockLab.applyFrom(clockLabQuery(ctx), clockLabTimeSync(ctx), bluetoothClockSync(ctx))
+        ClockLab.applyFrom(
+            clockLabQuery(ctx),
+            clockLabTimeSync(ctx),
+            bluetoothClockSync(ctx),
+            keepWifiAfterDisconnect(ctx),
+        )
     }
 }
 

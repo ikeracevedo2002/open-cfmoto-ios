@@ -228,6 +228,12 @@ object BikeProfileHolder {
     @Volatile var aaVideoOverride: AaVideoSpec? = null
 
     /**
+     * Setup ▸ Android Auto text size. When set, replaces [AaVideoSpec.dpi] on the effective spec
+     * so Maps / AA chrome scale without changing coded resolution.
+     */
+    @Volatile var aaDpiOverride: Int? = null
+
+    /**
      * Margins advertised to Android Auto so it renders at the dash panel's aspect ratio (see
      * [AaMargins]). Set before AA starts in [MainActivity]; read by [dev.zanderp.opencfmoto.aa.ServiceDiscoveryResponse]
      * (advertise) and the compositor (crop the source to the usable area). [AaMargins.NONE] = off.
@@ -255,7 +261,12 @@ object BikeProfileHolder {
     @Volatile var profileOverride: ProfileOverride = ProfileOverride.AUTO
 
     /** The effective Android Auto video spec: the user override if set, else the active profile's. */
-    val aaVideo: AaVideoSpec get() = aaVideoOverride ?: active.aaVideo
+    val aaVideo: AaVideoSpec
+        get() {
+            val base = aaVideoOverride ?: active.aaVideo
+            val d = aaDpiOverride ?: return base
+            return if (d == base.dpi) base else AaVideoSpec(base.resolution, d)
+        }
 
     /** Usable AA content size (coded frame minus [aaContentMargins]) — the aspect-correct area the
      *  compositor and the in-app Dash view actually show. Equals the coded size when margins are off. */
