@@ -29,8 +29,8 @@ class OpenCfMotoApp : Application() {
         }
         try {
             MapLibre.getInstance(this)
-            // Pin MapLibre style/tile HTTP to cellular while the process is bound to bike Wi‑Fi.
-            org.maplibre.android.module.http.HttpRequestUtil.setOkHttpClient(AppHttp.mapLibreOkHttpClient())
+            // After getInstance only — AppHttp network callbacks must not set the client first.
+            AppHttp.onMapLibreReady()
         } catch (e: Exception) {
             android.util.Log.w("OpenCfMoto", "MapLibre init failed: $e")
         }

@@ -18,6 +18,8 @@ Setup, not the default.
 - **Bulgarian** strings (draft)
 - Vehicle-telemetry field notes (`docs/RE-VEHICLE-TELEMETRY.md`)
 - Telemetry no longer uploads the AA 17.4 “Start head unit server” banner as an error
+- **Hotfix (same 76):** MapLibre tile HTTP is no longer applied from the cellular `onAvailable`
+  callback (that crashed 17/18). `setOkHttpClient` waits for `MapLibre.getInstance` on the main thread.
 
 Not in this cut: X-Cape 1200 stills, filled `{time,dateTime}` on every channel, Cockpit/Overtake,
 speed-based volume.
