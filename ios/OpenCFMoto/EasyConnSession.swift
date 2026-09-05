@@ -16,6 +16,18 @@ final class EasyConnSession {
     private var listeners: [NWListener] = []
     private var connections: [ObjectIdentifier: NWConnection] = [:]
     private let handshake = PXCHandshake()
+    private lazy var videoStream = H264VideoStream { [weak self] message in
+        self?.emit(.log(message))
+    }
+    private var captureConfiguration = MediaCaptureConfiguration(
+        width: 800,
+        height: 480,
+        framesPerSecond: 30,
+        encoder: 2,
+        supportsExtendedProtocol: 0
+    )
+    private var videoStarted = false
+    private var framesSent = 0
     private var didProbe = false
     private var stopped = false
 
@@ -53,6 +65,9 @@ final class EasyConnSession {
         listeners.removeAll()
         connections.values.forEach { $0.cancel() }
         connections.removeAll()
+        videoStream.stop()
+        videoStarted = false
+        framesSent = 0
     }
 
     private func startListener(port: UInt16) throws {
@@ -175,10 +190,56 @@ final class EasyConnSession {
             if let data, !data.isEmpty {
                 for request in decoder.append(data) {
                     self.emit(.log("Media <- \(request.command) (\(request.payload.count) bytes)"))
-                    if let response = MediaProtocol.response(to: request) { self.send(response, on: connection) }
+                    self.handleMedia(request, on: connection)
                 }
             }
             if !complete && error == nil { self.receiveMedia(connection, decoder: decoder) }
+        }
+    }
+
+    private func handleMedia(_ request: MediaRequest, on connection: NWConnection) {
+        switch request.command {
+        case 16:
+            captureConfiguration = MediaProtocol.captureConfiguration(from: request)
+            emit(.log(
+                "Dashboard requested H.264 \(captureConfiguration.width)x" +
+                "\(captureConfiguration.height) @ \(captureConfiguration.framesPerSecond) fps"
+            ))
+            if let response = MediaProtocol.response(to: request) { send(response, on: connection) }
+        case 112:
+            startVideoIfNeeded()
+            if let response = MediaProtocol.response(to: request) { send(response, on: connection) }
+        case 114:
+            startVideoIfNeeded()
+            videoStream.nextFrame { [weak self, weak connection] frame in
+                guard let self, let connection else { return }
+                self.queue.async {
+                    var packet = Data()
+                    packet.appendLittleEndian(UInt32(frame.count))
+                    packet.append(frame)
+                    self.send(packet, on: connection)
+                    self.framesSent += 1
+                    if self.framesSent <= 5 || self.framesSent % 60 == 0 {
+                        self.emit(.log("H.264 -> frame #\(self.framesSent) (\(frame.count) bytes)"))
+                    }
+                }
+            }
+        default:
+            if let response = MediaProtocol.response(to: request) { send(response, on: connection) }
+        }
+    }
+
+    private func startVideoIfNeeded() {
+        guard !videoStarted else { return }
+        do {
+            try videoStream.start(
+                width: captureConfiguration.width,
+                height: captureConfiguration.height,
+                framesPerSecond: captureConfiguration.framesPerSecond
+            )
+            videoStarted = true
+        } catch {
+            emit(.failed("Could not start H.264: \(error.localizedDescription)"))
         }
     }
 

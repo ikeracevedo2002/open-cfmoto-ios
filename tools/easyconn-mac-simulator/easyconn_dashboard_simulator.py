@@ -121,10 +121,9 @@ def capture_media(phone_ip: str, width: int, height: int, frame_count: int, outp
         with connect_with_retry(phone_ip, 10921) as control, connect_with_retry(phone_ip, 10920) as data:
             media_exchange(control, 48)
 
-            configuration = bytearray(30)
+            configuration = bytearray(32)
             struct.pack_into("<HH", configuration, 0, width, height)
-            configuration[4] = 30
-            configuration[5] = 2
+            struct.pack_into("<ii", configuration, 4, 30, 2)
             configuration[29] = 1
             media_exchange(control, 16, bytes(configuration))
             media_exchange(control, 96, b'{"width":%d,"height":%d}' % (width, height))
@@ -141,6 +140,8 @@ def capture_media(phone_ip: str, width: int, height: int, frame_count: int, outp
                     except socket.timeout:
                         log("No H.264 frame returned. Control/media negotiation works; iOS video encoding is the next milestone.")
                         break
+                    if not frame.startswith((b"\x00\x00\x00\x01", b"\x00\x00\x01")):
+                        raise ValueError("iPhone returned a frame that is not Annex-B H.264")
                     capture.write(frame)
                     received += 1
                     log(f"H.264 frame {received}: {len(frame)} bytes")

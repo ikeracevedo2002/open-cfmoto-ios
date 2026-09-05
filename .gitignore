@@ -55,6 +55,7 @@ tools/
 /tools/*
 !/tools/easyconn-mac-simulator/
 !/tools/easyconn-mac-simulator/**
+/tools/easyconn-mac-simulator/__pycache__/
 
 # Discord ops / MCP setup notes (local only).
 docs/DISCORD-MCP-SETUP.md

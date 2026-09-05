@@ -12,12 +12,14 @@ The branch contains an iOS 17+ SwiftUI application that can:
 - request local-network access and discover `_EasyConn._tcp` with Network.framework;
 - listen for dashboard callbacks on TCP ports 10920, 10921 and 10922;
 - encode/decode the 16-byte little-endian PXC control frame;
-- answer channel selection, heartbeat, speed, serial, time and initial media negotiation requests;
+- answer channel selection, heartbeat, speed, serial, time and media negotiation requests;
+- encode an app-owned animated projection surface as Baseline H.264 with VideoToolbox and serve
+  Annex-B access units when the dashboard sends media command 114;
 - show a live diagnostic log on the phone.
 
-This is a link-layer milestone, not a production release. H.264 delivery, touch/button input,
-validated HUID authentication, Yunmo transport, trips/maps and recovery still need to be ported and
-tested on real CFMoto hardware.
+This is a transport/video milestone, not a production release. Touch/button input, a real navigation
+surface, validated HUID authentication, Yunmo transport, trips/maps and recovery still need to be
+ported and tested on real CFMoto hardware.
 
 ## Build
 
@@ -38,7 +40,7 @@ can be developed and tested independently from that entitlement.
 
 1. Capture a successful control/media negotiation from an iPhone and compare it with Android logs.
 2. Implement the RSA/HUID exchange with Security.framework after validating the expected iOS wire format.
-3. Feed an app-owned navigation surface into VideoToolbox and serve Annex-B H.264 on media port 10920.
+3. Replace the animated H.264 test surface with the app's navigation compositor.
 4. Translate dashboard touch and handlebar messages into the iOS navigation UI.
 5. Port bike profiles, reconnect policy, GPX/trip storage, MapLibre and offline routing.
 6. Request Apple's navigation/CarPlay entitlement and add the approved CarPlay scene.

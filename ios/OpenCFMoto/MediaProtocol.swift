@@ -6,6 +6,14 @@ struct MediaRequest {
     let payload: Data
 }
 
+struct MediaCaptureConfiguration {
+    let width: Int
+    let height: Int
+    let framesPerSecond: Int
+    let encoder: UInt32
+    let supportsExtendedProtocol: UInt8
+}
+
 final class MediaStreamDecoder {
     private var buffer = Data()
 
@@ -26,16 +34,33 @@ final class MediaStreamDecoder {
 }
 
 enum MediaProtocol {
+    static func captureConfiguration(from request: MediaRequest) -> MediaCaptureConfiguration {
+        let requestedWidth = request.payload.count >= 2
+            ? Int(request.payload.readUInt16LE(at: 0)) : 800
+        let requestedHeight = request.payload.count >= 4
+            ? Int(request.payload.readUInt16LE(at: 2)) : 480
+        let requestedFPS = request.payload.count >= 8
+            ? Int(request.payload.readUInt32LE(at: 4)) : 30
+        let requestedEncoder = request.payload.count >= 12
+            ? request.payload.readUInt32LE(at: 8) : 2
+        return MediaCaptureConfiguration(
+            width: max(16, (requestedWidth == 0 ? 800 : requestedWidth) & ~15),
+            height: max(16, (requestedHeight == 0 ? 480 : requestedHeight) & ~15),
+            framesPerSecond: min(max(requestedFPS == 0 ? 30 : requestedFPS, 1), 30),
+            encoder: requestedEncoder == 0 ? 2 : requestedEncoder,
+            supportsExtendedProtocol: request.payload.count > 29 ? request.payload[29] : 0
+        )
+    }
+
     static func response(to request: MediaRequest) -> Data? {
         switch request.command {
         case 16:
-            let width = request.payload.count >= 2 ? request.payload.readUInt16LE(at: 0) & 0xfff0 : 800
-            let height = request.payload.count >= 4 ? request.payload.readUInt16LE(at: 2) & 0xfff0 : 480
+            let configuration = captureConfiguration(from: request)
             var payload = Data()
-            payload.appendLittleEndian(UInt32(2))
-            payload.appendLittleEndian(width)
-            payload.appendLittleEndian(height)
-            payload.append(request.payload.count > 29 ? request.payload[29] : 0)
+            payload.appendLittleEndian(configuration.encoder)
+            payload.appendLittleEndian(UInt16(configuration.width))
+            payload.appendLittleEndian(UInt16(configuration.height))
+            payload.append(configuration.supportsExtendedProtocol)
             return frame(command: 17, payload: payload)
         case 48:
             var payload = Data()
