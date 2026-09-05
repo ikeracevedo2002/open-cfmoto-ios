@@ -37,6 +37,11 @@ be inspected with:
 ffplay -f h264 -framerate 30 easyconn-capture.h264
 ```
 
+When `ffmpeg` is installed, the simulator also creates
+`easyconn-capture.mp4`. The MP4 wrapper adds 30 FPS timestamps, so Finder,
+QuickTime and VLC show the real duration instead of `0 s`. The raw `.h264`
+file is kept for protocol diagnostics.
+
 The default capture is 300 frames. For a longer session, use `--frames 0` and
 press `q` in the simulator terminal to stop. The simulator flushes the partial
 file, renames it to `easyconn-capture.h264`, and runs `ffprobe` when available

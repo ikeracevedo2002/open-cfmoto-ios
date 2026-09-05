@@ -133,6 +133,7 @@ def capture_media(
     phone_ip: str,
     width: int,
     height: int,
+    frames_per_second: int,
     frame_count: int,
     output: Path,
     touch_demo: bool,
@@ -146,7 +147,7 @@ def capture_media(
 
             configuration = bytearray(32)
             struct.pack_into("<HH", configuration, 0, width, height)
-            struct.pack_into("<ii", configuration, 4, 30, 2)
+            struct.pack_into("<ii", configuration, 4, frames_per_second, 2)
             configuration[29] = 1
             media_exchange(control, 16, bytes(configuration))
             media_exchange(control, 96, b'{"width":%d,"height":%d}' % (width, height))
@@ -183,7 +184,8 @@ def capture_media(
             if received:
                 partial_output.replace(output)
                 log(f"Saved {received} Annex-B H.264 frames to {output}")
-                report_capture(output)
+                report_capture(output, frames_per_second)
+                mux_capture(output, frames_per_second)
             else:
                 partial_output.unlink(missing_ok=True)
                 output.unlink(missing_ok=True)
@@ -191,17 +193,19 @@ def capture_media(
         if received and partial_output.exists():
             partial_output.replace(output)
             log(f"Saved {received} Annex-B H.264 frames to {output}")
-            report_capture(output)
+            report_capture(output, frames_per_second)
+            mux_capture(output, frames_per_second)
         raise
     except (OSError, ValueError, ConnectionError) as error:
         if received and partial_output.exists():
             partial_output.replace(output)
             log(f"Saved {received} Annex-B H.264 frames after channel stop to {output}")
-            report_capture(output)
+            report_capture(output, frames_per_second)
+            mux_capture(output, frames_per_second)
         log(f"Media channel stopped: {error}")
 
 
-def report_capture(output: Path) -> None:
+def report_capture(output: Path, frames_per_second: int) -> None:
     ffprobe = shutil.which("ffprobe")
     if ffprobe is None:
         return
@@ -222,9 +226,45 @@ def report_capture(output: Path) -> None:
     )
     count = result.stdout.strip()
     if result.returncode == 0 and count:
-        log(f"ffprobe decoded {count} video frames from {output}")
+        try:
+            duration = int(count) / frames_per_second
+            log(
+                f"ffprobe decoded {count} video frames from {output} "
+                f"(estimated {duration:.2f}s at {frames_per_second} fps)"
+            )
+        except ValueError:
+            log(f"ffprobe decoded {count} video frames from {output}")
     elif result.stderr.strip():
         log(f"ffprobe validation failed: {result.stderr.strip().splitlines()[-1]}")
+
+
+def mux_capture(output: Path, frames_per_second: int) -> None:
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg is None:
+        log("ffmpeg not found; keeping the raw .h264 capture only")
+        return
+    container_output = output.with_suffix(".mp4")
+    result = subprocess.run(
+        [
+            ffmpeg,
+            "-hide_banner",
+            "-loglevel", "error",
+            "-y",
+            "-f", "h264",
+            "-framerate", str(frames_per_second),
+            "-i", str(output),
+            "-c:v", "copy",
+            "-movflags", "+faststart",
+            str(container_output),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        log(f"Created timed video container {container_output}")
+    elif result.stderr.strip():
+        log(f"Could not create MP4 container: {result.stderr.strip().splitlines()[-1]}")
 
 
 def wait_for_stop_key(stop_event: threading.Event, stop_key: str) -> None:
@@ -262,6 +302,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Use a Mac as an EasyConn dashboard for OpenCFMoto iOS")
     parser.add_argument("--width", type=int, default=800)
     parser.add_argument("--height", type=int, default=480)
+    parser.add_argument("--fps", type=int, default=30, help="requested video rate, 1-30 (default: 30)")
     parser.add_argument(
         "--frames",
         type=int,
@@ -289,6 +330,9 @@ def main() -> int:
     args = parse_args()
     if len(args.stop_key) != 1:
         log("--stop-key must contain exactly one character")
+        return 2
+    if not 1 <= args.fps <= 30:
+        log("--fps must be between 1 and 30")
         return 2
     publisher: Optional[subprocess.Popen] = None
     stop_event = threading.Event()
@@ -324,6 +368,7 @@ def main() -> int:
                 phone_ip,
                 args.width,
                 args.height,
+                args.fps,
                 args.frames,
                 args.output,
                 not args.skip_touch_demo,
