@@ -60,4 +60,7 @@ docs/**/*discord-ops*
 .cursor/
 agent-tools/
 **/mcp.json
-
+# Xcode (native iOS branch)
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+ios/DerivedData/
