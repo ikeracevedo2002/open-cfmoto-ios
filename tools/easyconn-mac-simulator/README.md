@@ -34,5 +34,11 @@ Once frames are available, they are written to `easyconn-capture.h264` and can
 be inspected with:
 
 ```bash
-ffplay -f h264 easyconn-capture.h264
+ffplay -f h264 -framerate 30 easyconn-capture.h264
 ```
+
+The default capture is 300 frames. For a longer session, use `--frames 0` and
+press `q` in the simulator terminal to stop. The simulator flushes the partial
+file, renames it to `easyconn-capture.h264`, and runs `ffprobe` when available
+to report how many frames decode successfully. You can choose another stop key
+with `--stop-key x`.

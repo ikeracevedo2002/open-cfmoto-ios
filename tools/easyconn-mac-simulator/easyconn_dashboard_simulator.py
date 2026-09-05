@@ -9,12 +9,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import select
+import shutil
 import socket
 import struct
 import subprocess
 import sys
 import threading
+import termios
 import time
+import tty
 from pathlib import Path
 from typing import Optional
 
@@ -132,7 +136,10 @@ def capture_media(
     frame_count: int,
     output: Path,
     touch_demo: bool,
+    stop_event: threading.Event,
 ) -> None:
+    partial_output = output.with_name(output.name + ".part")
+    received = 0
     try:
         with connect_with_retry(phone_ip, 10921) as control, connect_with_retry(phone_ip, 10920) as data:
             media_exchange(control, 48)
@@ -146,10 +153,10 @@ def capture_media(
             media_exchange(control, 128)
             media_exchange(data, 112)
 
-            received = 0
-            with output.open("wb") as capture:
+            partial_output.unlink(missing_ok=True)
+            with partial_output.open("wb") as capture:
                 frame_index = 0
-                while frame_count <= 0 or frame_index < frame_count:
+                while not stop_event.is_set() and (frame_count <= 0 or frame_index < frame_count):
                     if touch_demo and frame_index == 4:
                         send_touch(control, 2, int(width * 0.64), int(height * 0.82))
                     elif touch_demo and 5 <= frame_index <= 9:
@@ -163,7 +170,8 @@ def capture_media(
                         frame_size = struct.unpack("<I", recv_exact(data, 4))[0]
                         frame = recv_exact(data, frame_size)
                     except socket.timeout:
-                        log("No H.264 frame returned; stopping media capture.")
+                        if not stop_event.is_set():
+                            log("No H.264 frame returned; stopping media capture.")
                         break
                     if not frame.startswith((b"\x00\x00\x00\x01", b"\x00\x00\x01")):
                         raise ValueError("iPhone returned a frame that is not Annex-B H.264")
@@ -173,11 +181,70 @@ def capture_media(
                     frame_index += 1
 
             if received:
+                partial_output.replace(output)
                 log(f"Saved {received} Annex-B H.264 frames to {output}")
+                report_capture(output)
             else:
+                partial_output.unlink(missing_ok=True)
                 output.unlink(missing_ok=True)
+    except KeyboardInterrupt:
+        if received and partial_output.exists():
+            partial_output.replace(output)
+            log(f"Saved {received} Annex-B H.264 frames to {output}")
+            report_capture(output)
+        raise
     except (OSError, ValueError, ConnectionError) as error:
+        if received and partial_output.exists():
+            partial_output.replace(output)
+            log(f"Saved {received} Annex-B H.264 frames after channel stop to {output}")
+            report_capture(output)
         log(f"Media channel stopped: {error}")
+
+
+def report_capture(output: Path) -> None:
+    ffprobe = shutil.which("ffprobe")
+    if ffprobe is None:
+        return
+    result = subprocess.run(
+        [
+            ffprobe,
+            "-v", "error",
+            "-f", "h264",
+            "-count_frames",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=nb_read_frames",
+            "-of", "default=nw=1:nk=1",
+            str(output),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    count = result.stdout.strip()
+    if result.returncode == 0 and count:
+        log(f"ffprobe decoded {count} video frames from {output}")
+    elif result.stderr.strip():
+        log(f"ffprobe validation failed: {result.stderr.strip().splitlines()[-1]}")
+
+
+def wait_for_stop_key(stop_event: threading.Event, stop_key: str) -> None:
+    if not sys.stdin.isatty():
+        log(f"Interactive stop disabled because stdin is not a TTY; use --frames N instead of --frames 0")
+        return
+
+    file_descriptor = sys.stdin.fileno()
+    previous_attributes = termios.tcgetattr(file_descriptor)
+    try:
+        tty.setcbreak(file_descriptor)
+        log(f"Press {stop_key!r} to stop and save the H.264 capture")
+        while not stop_event.is_set():
+            ready, _, _ = select.select([sys.stdin], [], [], 0.2)
+            if ready and sys.stdin.read(1).lower() == stop_key:
+                stop_event.set()
+                log(f"Stop key {stop_key!r} received; flushing capture")
+                return
+    finally:
+        termios.tcsetattr(file_descriptor, termios.TCSADRAIN, previous_attributes)
 
 
 def accept_discovery(server: socket.socket) -> str:
@@ -199,9 +266,14 @@ def parse_args() -> argparse.Namespace:
         "--frames",
         type=int,
         default=300,
-        help="number of frames to request; use 0 to stream until Control-C (default: 300)",
+        help="number of frames to request; use 0 to stream until --stop-key (default: 300)",
     )
     parser.add_argument("--output", type=Path, default=Path("easyconn-capture.h264"))
+    parser.add_argument(
+        "--stop-key",
+        default="q",
+        help="single key that ends an infinite capture and saves it (default: q)",
+    )
     parser.add_argument(
         "--skip-touch-demo",
         action="store_true",
@@ -215,8 +287,12 @@ def main() -> int:
         log("Warning: Bonjour publishing uses macOS dns-sd; this script is intended to run on a Mac.")
 
     args = parse_args()
+    if len(args.stop_key) != 1:
+        log("--stop-key must contain exactly one character")
+        return 2
     publisher: Optional[subprocess.Popen] = None
     stop_event = threading.Event()
+    stop_key_thread: Optional[threading.Thread] = None
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
             server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -238,6 +314,12 @@ def main() -> int:
             phone_ip = accept_discovery(server)
             control_thread = threading.Thread(target=run_control, args=(phone_ip, stop_event), daemon=True)
             control_thread.start()
+            stop_key_thread = threading.Thread(
+                target=wait_for_stop_key,
+                args=(stop_event, args.stop_key.lower()),
+                daemon=True,
+            )
+            stop_key_thread.start()
             capture_media(
                 phone_ip,
                 args.width,
@@ -245,8 +327,10 @@ def main() -> int:
                 args.frames,
                 args.output,
                 not args.skip_touch_demo,
+                stop_event,
             )
-            log("Simulator is running; press Control-C to stop")
+            if not stop_event.is_set() and args.frames > 0:
+                log("Capture limit reached; press Control-C to stop the simulator")
             while not stop_event.wait(1):
                 pass
     except KeyboardInterrupt:

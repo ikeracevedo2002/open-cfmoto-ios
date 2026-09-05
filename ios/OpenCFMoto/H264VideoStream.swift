@@ -258,7 +258,8 @@ private final class H264Encoder {
         guard let session else { throw H264VideoStreamError.compressionSession(-1) }
         let presentationTime = CMTime(value: frameNumber, timescale: framesPerSecond)
         let duration = CMTime(value: 1, timescale: framesPerSecond)
-        let properties: CFDictionary? = forceKeyframe
+        let forcePeriodicKeyframe = frameNumber > 0 && frameNumber % Int64(framesPerSecond) == 0
+        let properties: CFDictionary? = forceKeyframe || forcePeriodicKeyframe
             ? [kVTEncodeFrameOptionKey_ForceKeyFrame: true] as CFDictionary
             : nil
         var flags = VTEncodeInfoFlags()
@@ -287,18 +288,6 @@ private final class H264Encoder {
               CMSampleBufferDataIsReady(sampleBuffer),
               let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else { return }
 
-        let attachments = CMSampleBufferGetSampleAttachmentsArray(
-            sampleBuffer,
-            createIfNecessary: false
-        ) as? [[CFString: Any]]
-        let isKeyframe = !(attachments?.first?[kCMSampleAttachmentKey_NotSync] as? Bool ?? false)
-
-        var accessUnit = Data()
-        if isKeyframe, let format = CMSampleBufferGetFormatDescription(sampleBuffer) {
-            appendParameterSet(index: 0, from: format, to: &accessUnit)
-            appendParameterSet(index: 1, from: format, to: &accessUnit)
-        }
-
         let length = CMBlockBufferGetDataLength(blockBuffer)
         var avcc = Data(count: length)
         let copyStatus = avcc.withUnsafeMutableBytes { bytes -> OSStatus in
@@ -312,17 +301,52 @@ private final class H264Encoder {
         }
         guard copyStatus == noErr else { return }
 
+        let format = CMSampleBufferGetFormatDescription(sampleBuffer)
+        var headerLength: Int32 = 4
+        if let format {
+            _ = CMVideoFormatDescriptionGetH264ParameterSetAtIndex(
+                format,
+                parameterSetIndex: 0,
+                parameterSetPointerOut: nil,
+                parameterSetSizeOut: nil,
+                parameterSetCountOut: nil,
+                nalUnitHeaderLengthOut: &headerLength
+            )
+        }
+        let nalHeaderLength = min(max(Int(headerLength), 1), 4)
+        var nalUnits: [Data] = []
         var offset = 0
-        while offset + 4 <= avcc.count {
-            let nalLength = Int(avcc[offset]) << 24
-                | Int(avcc[offset + 1]) << 16
-                | Int(avcc[offset + 2]) << 8
-                | Int(avcc[offset + 3])
-            offset += 4
+        while offset + nalHeaderLength <= avcc.count {
+            var nalLength = 0
+            for byte in avcc[offset..<(offset + nalHeaderLength)] {
+                nalLength = (nalLength << 8) | Int(byte)
+            }
+            offset += nalHeaderLength
             guard nalLength > 0, offset + nalLength <= avcc.count else { return }
-            accessUnit.append(contentsOf: [0, 0, 0, 1])
-            accessUnit.append(avcc.subdata(in: offset..<(offset + nalLength)))
+            nalUnits.append(avcc.subdata(in: offset..<(offset + nalLength)))
             offset += nalLength
+        }
+        guard !nalUnits.isEmpty else { return }
+
+        let attachments = CMSampleBufferGetSampleAttachmentsArray(
+            sampleBuffer,
+            createIfNecessary: false
+        ) as? [[CFString: Any]]
+        let attachmentSaysKeyframe = attachments?.first?[kCMSampleAttachmentKey_NotSync] as? Bool == false
+        let containsIDR = nalUnits.contains { nalUnit in
+            guard let firstByte = nalUnit.first else { return false }
+            return firstByte & 0x1F == 5
+        }
+        let isKeyframe = attachmentSaysKeyframe || containsIDR
+
+        var accessUnit = Data([0, 0, 0, 1, 0x09, 0x10])
+        if isKeyframe, let format {
+            appendParameterSet(index: 0, from: format, to: &accessUnit)
+            appendParameterSet(index: 1, from: format, to: &accessUnit)
+        }
+        for nalUnit in nalUnits {
+            accessUnit.append(contentsOf: [0, 0, 0, 1])
+            accessUnit.append(nalUnit)
         }
 
         if !accessUnit.isEmpty { output(accessUnit) }
