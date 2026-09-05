@@ -8,6 +8,9 @@ struct OpenCFMotoApp: App {
         WindowGroup {
             HomeView()
                 .environmentObject(model)
+                .task {
+                    model.start()
+                }
         }
     }
 }

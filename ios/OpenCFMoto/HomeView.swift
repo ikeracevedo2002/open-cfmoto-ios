@@ -12,7 +12,17 @@ struct HomeView: View {
                             .font(.system(size: 28))
                             .foregroundStyle(statusColor)
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(model.state.title).font(.headline)
+                            HStack {
+                                Text(model.statusTitle).font(.headline)
+                                if model.isMockMode {
+                                    Text("MOCK")
+                                        .font(.caption2.bold())
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 3)
+                                        .foregroundStyle(.white)
+                                        .background(.orange, in: Capsule())
+                                }
+                            }
                             Text(model.bike?.displayName ?? "Scan the QR shown by the dashboard")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
@@ -27,7 +37,14 @@ struct HomeView: View {
                         Label("Scan bike QR", systemImage: "qrcode.viewfinder")
                     }
 
-                    if model.bike != nil {
+                    if model.isMockMode {
+                        Text("The app is using an in-process motorcycle simulator. No QR, Wi-Fi or dashboard is required.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Button("Restart motorcycle simulator") { model.useMockMotorcycle() }
+                        Button("Switch to real motorcycle") { model.useRealMotorcycle() }
+                        Button("Stop simulator", role: .destructive) { model.stop() }
+                    } else if model.bike != nil {
                         if case .awaitingManualWiFi = model.state {
                             Text("Open Settings → Wi-Fi, join the network shown below, then return here.")
                                 .font(.subheadline)
@@ -39,10 +56,20 @@ struct HomeView: View {
                         }
                         Button("Stop", role: .destructive) { model.stop() }
                     }
+
+#if DEBUG
+                    if !model.isMockMode {
+                        Button {
+                            model.useMockMotorcycle()
+                        } label: {
+                            Label("Use motorcycle simulator", systemImage: "motorcycle")
+                        }
+                    }
+#endif
                 }
 
                 if let bike = model.bike {
-                    Section("Bike") {
+                    Section(model.isMockMode ? "Simulated bike" : "Bike") {
                         LabeledContent("Wi-Fi", value: bike.ssid)
                         if !bike.password.isEmpty {
                             LabeledContent("Password", value: bike.password)
@@ -92,7 +119,7 @@ struct HomeView: View {
 
     private var statusColor: Color {
         switch model.state {
-        case .linked: return .green
+        case .linked: return model.isMockMode ? .orange : .green
         case .failed: return .red
         default: return .accentColor
         }

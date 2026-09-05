@@ -25,9 +25,33 @@ final class AppModel: ObservableObject {
     @Published private(set) var state: State = .idle
     @Published private(set) var bike: QRCodePayload?
     @Published private(set) var logs: [String] = []
+    @Published private(set) var isMockMode = false
     @Published var isScannerPresented = false
 
-    private var session: EasyConnSession?
+    private var session: MotorcycleSession?
+    private var didStart = false
+
+    var statusTitle: String {
+        guard isMockMode else { return state.title }
+        switch state {
+        case .idle: return "Motorcycle simulator stopped"
+        case .discovering: return "Starting motorcycle simulator"
+        case .handshaking: return "Simulating EasyConn handshake"
+        case .linked: return "Motorcycle simulator linked"
+        case .failed(let message): return message
+        case .awaitingManualWiFi: return "Motorcycle simulator"
+        }
+    }
+
+    func start() {
+        guard !didStart else { return }
+        didStart = true
+#if DEBUG
+        startMockSession()
+#else
+        log("Ready to scan a motorcycle QR")
+#endif
+    }
 
     func accept(scanned value: String) {
         guard let payload = QRCodePayload.parse(value) else {
@@ -35,6 +59,7 @@ final class AppModel: ObservableObject {
             return
         }
         isScannerPresented = false
+        isMockMode = false
         bike = payload
         session?.stop()
         session = nil
@@ -44,27 +69,69 @@ final class AppModel: ObservableObject {
     }
 
     func reconnect() {
+        if isMockMode {
+            startMockSession()
+            return
+        }
         guard bike != nil else { return }
-        startSession()
+        startRealSession()
     }
 
     func continueAfterManualWiFi() {
-        startSession()
+        startRealSession()
+    }
+
+    func useMockMotorcycle() {
+        startMockSession()
+    }
+
+    func useRealMotorcycle() {
+        session?.stop()
+        session = nil
+        isMockMode = false
+        bike = nil
+        state = .idle
+        log("Real motorcycle mode selected")
     }
 
     func stop() {
         session?.stop()
         session = nil
         state = .idle
-        log("Stopped")
+        log(isMockMode ? "Motorcycle simulator stopped" : "Stopped")
     }
 
-    private func startSession() {
+    private func startRealSession() {
         session?.stop()
+        isMockMode = false
         state = .discovering
         log("Browsing _EasyConn._tcp on the current Wi-Fi network")
 
         let newSession = EasyConnSession { [weak self] event in
+            Task { @MainActor in self?.consume(event) }
+        }
+        session = newSession
+        newSession.start()
+    }
+
+    private func startMockSession() {
+        session?.stop()
+        isMockMode = true
+        bike = QRCodePayload(
+            ssid: "OPENCFMOTO-MOCK",
+            password: "",
+            authentication: "simulated",
+            macAddress: "02:00:00:00:10:92",
+            name: "CFMOTO Dashboard Simulator",
+            action: 1,
+            modelID: "MOCK-800MT",
+            serialNumber: "OPENCFMOTO-IOS-DEV",
+            channel: "mock"
+        )
+        state = .discovering
+        log("MOCK mode enabled; no QR, Wi-Fi or motorcycle is required")
+
+        let newSession = MockMotorcycleSession { [weak self] event in
             Task { @MainActor in self?.consume(event) }
         }
         session = newSession
