@@ -116,7 +116,23 @@ def media_exchange(connection: socket.socket, command: int, payload: bytes = b""
     return response_payload
 
 
-def capture_media(phone_ip: str, width: int, height: int, frame_count: int, output: Path) -> None:
+def send_touch(connection: socket.socket, action: int, x: int, y: int, pointer_id: int = 0) -> None:
+    payload = bytearray(18)
+    timestamp = int(time.monotonic() * 1000) & 0xFFFFFFFF
+    struct.pack_into("<HHHHI", payload, 0, action, x, y, pointer_id, timestamp)
+    connection.sendall(media_frame(32, bytes(payload)))
+    names = {1: "up", 2: "down", 3: "move"}
+    log(f"Touch {names.get(action, action)} -> ({x},{y})")
+
+
+def capture_media(
+    phone_ip: str,
+    width: int,
+    height: int,
+    frame_count: int,
+    output: Path,
+    touch_demo: bool,
+) -> None:
     try:
         with connect_with_retry(phone_ip, 10921) as control, connect_with_retry(phone_ip, 10920) as data:
             media_exchange(control, 48)
@@ -132,7 +148,15 @@ def capture_media(phone_ip: str, width: int, height: int, frame_count: int, outp
 
             received = 0
             with output.open("wb") as capture:
-                for _ in range(frame_count):
+                for frame_index in range(frame_count):
+                    if touch_demo and frame_index == 4:
+                        send_touch(control, 2, int(width * 0.15), int(height * 0.82))
+                    elif touch_demo and 5 <= frame_index <= 9:
+                        progress = (frame_index - 5) / 4
+                        x = int(width * (0.15 + progress * 0.70))
+                        send_touch(control, 3, x, int(height * 0.82))
+                    elif touch_demo and frame_index == 10:
+                        send_touch(control, 1, int(width * 0.85), int(height * 0.82))
                     data.sendall(media_frame(114))
                     try:
                         frame_size = struct.unpack("<I", recv_exact(data, 4))[0]
@@ -171,6 +195,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=480)
     parser.add_argument("--frames", type=int, default=30)
     parser.add_argument("--output", type=Path, default=Path("easyconn-capture.h264"))
+    parser.add_argument(
+        "--skip-touch-demo",
+        action="store_true",
+        help="do not send the automatic EasyConn drag gesture",
+    )
     return parser.parse_args()
 
 
@@ -202,7 +231,14 @@ def main() -> int:
             phone_ip = accept_discovery(server)
             control_thread = threading.Thread(target=run_control, args=(phone_ip, stop_event), daemon=True)
             control_thread.start()
-            capture_media(phone_ip, args.width, args.height, args.frames, args.output)
+            capture_media(
+                phone_ip,
+                args.width,
+                args.height,
+                args.frames,
+                args.output,
+                not args.skip_touch_demo,
+            )
             log("Simulator is running; press Control-C to stop")
             while not stop_event.wait(1):
                 pass

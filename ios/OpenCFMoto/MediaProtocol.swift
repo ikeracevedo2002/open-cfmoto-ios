@@ -14,6 +14,20 @@ struct MediaCaptureConfiguration {
     let supportsExtendedProtocol: UInt8
 }
 
+struct EasyConnTouchEvent {
+    enum Phase: String {
+        case down
+        case move
+        case up
+    }
+
+    let phase: Phase
+    let x: Int
+    let y: Int
+    let pointerID: Int
+    let timestamp: UInt32
+}
+
 final class MediaStreamDecoder {
     private var buffer = Data()
 
@@ -34,6 +48,25 @@ final class MediaStreamDecoder {
 }
 
 enum MediaProtocol {
+    static func touchEvent(from request: MediaRequest) -> EasyConnTouchEvent? {
+        guard request.command == 32, request.payload.count >= 8 else { return nil }
+        let rawAction = request.payload.readUInt16LE(at: 0)
+        let phase: EasyConnTouchEvent.Phase
+        switch rawAction {
+        case 2: phase = .down
+        case 3: phase = .move
+        case 1: phase = .up
+        default: return nil
+        }
+        return EasyConnTouchEvent(
+            phase: phase,
+            x: Int(request.payload.readUInt16LE(at: 2)),
+            y: Int(request.payload.readUInt16LE(at: 4)),
+            pointerID: Int(request.payload.readUInt16LE(at: 6)),
+            timestamp: request.payload.count >= 12 ? request.payload.readUInt32LE(at: 8) : 0
+        )
+    }
+
     static func captureConfiguration(from request: MediaRequest) -> MediaCaptureConfiguration {
         let requestedWidth = request.payload.count >= 2
             ? Int(request.payload.readUInt16LE(at: 0)) : 800

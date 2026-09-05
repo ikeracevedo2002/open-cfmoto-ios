@@ -224,6 +224,22 @@ final class EasyConnSession {
                     }
                 }
             }
+        case 32:
+            guard let touch = MediaProtocol.touchEvent(from: request) else {
+                emit(.log("Ignored malformed EasyConn touch event"))
+                return
+            }
+            videoStream.handleTouch(
+                touch,
+                canvasWidth: captureConfiguration.width,
+                canvasHeight: captureConfiguration.height
+            )
+            if touch.phase != .move {
+                emit(.log(
+                    "Touch \(touch.phase.rawValue) p\(touch.pointerID) " +
+                    "(\(touch.x),\(touch.y))"
+                ))
+            }
         default:
             if let response = MediaProtocol.response(to: request) { send(response, on: connection) }
         }

@@ -25,6 +25,10 @@ The test validates Bonjour discovery, PXC framing, client info, serial
 validation, heartbeat, media negotiation, and H.264 delivery. OpenCFMoto
 renders an app-owned animated navigation test surface, encodes it through
 VideoToolbox, and returns Annex-B access units for media command `114`.
+During capture, the Mac also sends an automatic DOWN/MOVE/UP drag using media
+command `32`. The projected touch marker moves across the action bar and the
+selected action changes, proving the reverse input channel. Pass
+`--skip-touch-demo` to disable it.
 
 Once frames are available, they are written to `easyconn-capture.h264` and can
 be inspected with:

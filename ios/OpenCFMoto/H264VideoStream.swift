@@ -39,6 +39,7 @@ final class H264VideoStream {
     private var needsInitialKeyframe = true
     private var waitingConsumers: [(Data) -> Void] = []
     private var frameNumber: Int64 = 0
+    private var interaction = ProjectionInteractionState()
 
     init(log: @escaping LogHandler) {
         self.log = log
@@ -105,6 +106,23 @@ final class H264VideoStream {
         }
     }
 
+    func handleTouch(_ event: EasyConnTouchEvent, canvasWidth: Int, canvasHeight: Int) {
+        let normalisedX = min(max(CGFloat(event.x) / CGFloat(max(canvasWidth, 1)), 0), 1)
+        let normalisedY = min(max(CGFloat(event.y) / CGFloat(max(canvasHeight, 1)), 0), 1)
+        frameLock.lock()
+        interaction.touchPoint = CGPoint(x: normalisedX, y: normalisedY)
+        switch event.phase {
+        case .down, .move:
+            interaction.isTouching = true
+        case .up:
+            interaction.isTouching = false
+            if normalisedY >= 0.70 {
+                interaction.selectedAction = min(2, max(0, Int(normalisedX * 3)))
+            }
+        }
+        frameLock.unlock()
+    }
+
     func stop() {
         encoderQueue.sync {
             timer?.cancel()
@@ -117,13 +135,21 @@ final class H264VideoStream {
         initialKeyframe = nil
         needsInitialKeyframe = true
         waitingConsumers.removeAll()
+        interaction = ProjectionInteractionState()
         frameLock.unlock()
     }
 
     private func renderAndEncode(using encoder: H264Encoder, forceKeyframe: Bool) {
         do {
             let buffer = try encoder.makePixelBuffer()
-            ProjectionFrameRenderer.draw(frame: frameNumber, into: buffer)
+            frameLock.lock()
+            let interactionSnapshot = interaction
+            frameLock.unlock()
+            ProjectionFrameRenderer.draw(
+                frame: frameNumber,
+                interaction: interactionSnapshot,
+                into: buffer
+            )
             try encoder.encode(
                 buffer,
                 frameNumber: frameNumber,
@@ -339,8 +365,18 @@ private func h264CompressionOutputCallback(
     encoder.receive(status: status, sampleBuffer: sampleBuffer)
 }
 
+private struct ProjectionInteractionState {
+    var touchPoint = CGPoint(x: 0.5, y: 0.5)
+    var isTouching = false
+    var selectedAction = 1
+}
+
 private enum ProjectionFrameRenderer {
-    static func draw(frame: Int64, into pixelBuffer: CVPixelBuffer) {
+    static func draw(
+        frame: Int64,
+        interaction: ProjectionInteractionState,
+        into pixelBuffer: CVPixelBuffer
+    ) {
         CVPixelBufferLockBaseAddress(pixelBuffer, [])
         defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
         guard let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer) else { return }
@@ -403,13 +439,31 @@ private enum ProjectionFrameRenderer {
             height: markerRadius * 2
         ))
 
-        let statusWidth = CGFloat(width) * 0.22
-        context.setFillColor(CGColor(red: 0.12, green: 0.68, blue: 0.35, alpha: 1))
-        context.fill(CGRect(
-            x: margin * 1.5,
-            y: CGFloat(height) * 0.78,
-            width: statusWidth,
-            height: max(8, CGFloat(height) * 0.035)
+        let actionGap = CGFloat(width) * 0.025
+        let actionWidth = (panel.width - actionGap * 4) / 3
+        let actionHeight = CGFloat(height) * 0.12
+        for index in 0..<3 {
+            let selected = index == interaction.selectedAction
+            context.setFillColor(selected
+                ? CGColor(red: 0.12, green: 0.68, blue: 0.35, alpha: 1)
+                : CGColor(red: 0.14, green: 0.22, blue: 0.27, alpha: 1))
+            context.fill(CGRect(
+                x: panel.minX + actionGap + CGFloat(index) * (actionWidth + actionGap),
+                y: panel.minY + actionGap,
+                width: actionWidth,
+                height: actionHeight
+            ))
+        }
+
+        let touchRadius = interaction.isTouching ? CGFloat(width) * 0.026 : CGFloat(width) * 0.014
+        context.setFillColor(interaction.isTouching
+            ? CGColor(red: 1, green: 0.25, blue: 0.18, alpha: 0.95)
+            : CGColor(red: 1, green: 0.7, blue: 0.1, alpha: 0.7))
+        context.fillEllipse(in: CGRect(
+            x: interaction.touchPoint.x * CGFloat(width) - touchRadius,
+            y: interaction.touchPoint.y * CGFloat(height) - touchRadius,
+            width: touchRadius * 2,
+            height: touchRadius * 2
         ))
     }
 }
