@@ -10,6 +10,7 @@ final class EasyConnSession {
     }
 
     private let queue = DispatchQueue(label: "dev.opencfmoto.easyconn", qos: .userInitiated)
+    private let queueKey = DispatchSpecificKey<UInt8>()
     private let emit: (Event) -> Void
     private var browser: NWBrowser?
     private var listeners: [NWListener] = []
@@ -20,6 +21,7 @@ final class EasyConnSession {
 
     init(emit: @escaping (Event) -> Void) {
         self.emit = emit
+        queue.setSpecific(key: queueKey, value: 1)
     }
 
     func start() {
@@ -36,21 +38,28 @@ final class EasyConnSession {
     }
 
     func stop() {
-        queue.async { [weak self] in
-            guard let self else { return }
-            self.stopped = true
-            self.browser?.cancel()
-            self.browser = nil
-            self.listeners.forEach { $0.cancel() }
-            self.listeners.removeAll()
-            self.connections.values.forEach { $0.cancel() }
-            self.connections.removeAll()
+        if DispatchQueue.getSpecific(key: queueKey) != nil {
+            stopOnQueue()
+        } else {
+            queue.sync { stopOnQueue() }
         }
+    }
+
+    private func stopOnQueue() {
+        stopped = true
+        browser?.cancel()
+        browser = nil
+        listeners.forEach { $0.cancel() }
+        listeners.removeAll()
+        connections.values.forEach { $0.cancel() }
+        connections.removeAll()
     }
 
     private func startListener(port: UInt16) throws {
         guard let endpointPort = NWEndpoint.Port(rawValue: port) else { return }
-        let listener = try NWListener(using: .tcp, on: endpointPort)
+        let parameters = NWParameters.tcp
+        parameters.allowLocalEndpointReuse = true
+        let listener = try NWListener(using: parameters, on: endpointPort)
         listener.stateUpdateHandler = { [weak self] state in
             switch state {
             case .ready: self?.emit(.log("Listening on TCP :\(port)"))
