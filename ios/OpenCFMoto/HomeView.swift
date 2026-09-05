@@ -80,6 +80,14 @@ struct HomeView: View {
                         .foregroundStyle(.secondary)
                     if !navigation.routeSummary.isEmpty {
                         LabeledContent("Route", value: navigation.routeSummary)
+                        if navigation.progressPercent > 0 {
+                            ProgressView(value: Double(navigation.progressPercent), total: 100)
+                                .overlay(alignment: .trailing) {
+                                    Text("\(navigation.progressPercent)%")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                        }
                         if navigation.alternativesCount > 1 {
                             Button("Try next route (\(navigation.alternativesCount) available)") {
                                 navigation.selectNextAlternative()

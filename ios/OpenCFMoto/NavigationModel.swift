@@ -83,6 +83,7 @@ final class NavigationModel: NSObject, ObservableObject, @preconcurrency CLLocat
     @Published private(set) var routeSummary = ""
     @Published private(set) var alternativesCount = 0
     @Published private(set) var isCalculating = false
+    @Published private(set) var progressPercent = 0
     @Published private(set) var authorizationStatus: CLAuthorizationStatus
 
     private let locationManager = CLLocationManager()
@@ -93,6 +94,10 @@ final class NavigationModel: NSObject, ObservableObject, @preconcurrency CLLocat
     private var routes: [NavigationRoute] = []
     private var selectedRouteIndex = 0
     private var destinationName = ""
+    private var destinationCoordinate: CLLocationCoordinate2D?
+    private var canReroute = false
+    private var lastRerouteAt: Date?
+    private var rerouteTask: Task<Void, Never>?
 
     override init() {
         authorizationStatus = locationManager.authorizationStatus
@@ -162,23 +167,12 @@ final class NavigationModel: NSObject, ObservableObject, @preconcurrency CLLocat
                 routes = candidates
                 selectedRouteIndex = 0
                 destinationName = name
+                destinationCoordinate = destination.placemark.coordinate
+                canReroute = true
+                lastRerouteAt = Date()
                 alternativesCount = candidates.count
                 let image = try await renderMap(points: route.points)
-                let instruction = route.firstInstruction
-                let distance = Self.distanceFormatter.string(from: Measurement(
-                    value: route.distanceMeters,
-                    unit: UnitLength.meters
-                ))
-                let duration = Self.durationFormatter.string(from: route.durationSeconds) ?? "--"
-
-                projectionStore.updateRoute(
-                    mapImage: image,
-                    instruction: instruction,
-                    destination: name,
-                    distance: distance,
-                    duration: duration
-                )
-                routeSummary = "\(distance) • \(duration)"
+                publish(route: route, image: image, destination: name)
                 status = "Route to \(name) ready"
             } catch {
                 status = "Route failed: \(error.localizedDescription)"
@@ -192,9 +186,15 @@ final class NavigationModel: NSObject, ObservableObject, @preconcurrency CLLocat
         destinationQuery = ""
         routeSummary = ""
         alternativesCount = 0
+        progressPercent = 0
         routes = []
         selectedRouteIndex = 0
         destinationName = ""
+        destinationCoordinate = nil
+        canReroute = false
+        lastRerouteAt = nil
+        rerouteTask?.cancel()
+        rerouteTask = nil
         status = "No route selected"
         projectionStore.clearRoute()
     }
@@ -207,24 +207,15 @@ final class NavigationModel: NSObject, ObservableObject, @preconcurrency CLLocat
             routes = [route]
             selectedRouteIndex = 0
             destinationName = name
+            destinationCoordinate = route.points.last?.clLocation
+            canReroute = false
+            lastRerouteAt = nil
             alternativesCount = 1
             status = "Rendering GPX route…"
             Task {
                 do {
                     let image = try await renderMap(points: route.points)
-                    let distance = Self.distanceFormatter.string(from: Measurement(
-                        value: route.distanceMeters,
-                        unit: UnitLength.meters
-                    ))
-                    let duration = Self.durationFormatter.string(from: route.durationSeconds) ?? "--"
-                    projectionStore.updateRoute(
-                        mapImage: image,
-                        instruction: route.firstInstruction,
-                        destination: name,
-                        distance: distance,
-                        duration: duration
-                    )
-                    routeSummary = "\(distance) • \(duration)"
+                    publish(route: route, image: image, destination: name)
                     status = "GPX route ready"
                 } catch {
                     status = "GPX map failed: \(error.localizedDescription)"
@@ -242,19 +233,7 @@ final class NavigationModel: NSObject, ObservableObject, @preconcurrency CLLocat
         Task {
             do {
                 let image = try await renderMap(points: route.points)
-                let distance = Self.distanceFormatter.string(from: Measurement(
-                    value: route.distanceMeters,
-                    unit: UnitLength.meters
-                ))
-                let duration = Self.durationFormatter.string(from: route.durationSeconds) ?? "--"
-                projectionStore.updateRoute(
-                    mapImage: image,
-                    instruction: route.firstInstruction,
-                    destination: destinationName,
-                    distance: distance,
-                    duration: duration
-                )
-                routeSummary = "\(distance) • \(duration)"
+                publish(route: route, image: image, destination: destinationName)
                 status = "Alternative \(selectedRouteIndex + 1) of \(routes.count) selected"
             } catch {
                 status = "Could not render alternative: \(error.localizedDescription)"
@@ -278,6 +257,9 @@ final class NavigationModel: NSObject, ObservableObject, @preconcurrency CLLocat
         currentLocation = location
         let speed = location.speed >= 0 ? Int((location.speed * 3.6).rounded()) : 0
         projectionStore.updateSpeed(speed)
+        if let route = activeRoute {
+            updateProgress(for: location, on: route)
+        }
         if calculateWhenLocationArrives {
             calculateWhenLocationArrives = false
             calculateRoute()
@@ -286,6 +268,107 @@ final class NavigationModel: NSObject, ObservableObject, @preconcurrency CLLocat
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         status = "GPS unavailable: \(error.localizedDescription)"
+    }
+
+    private var activeRoute: NavigationRoute? {
+        guard routes.indices.contains(selectedRouteIndex) else { return nil }
+        return routes[selectedRouteIndex]
+    }
+
+    private func updateProgress(for location: CLLocation, on route: NavigationRoute) {
+        let progress = NavigationProgressCalculator.progress(for: location, on: route)
+        let distance = Self.distanceFormatter.string(from: Measurement(
+            value: progress.remainingDistanceMeters,
+            unit: UnitLength.meters
+        ))
+        let duration = Self.durationFormatter.string(from: progress.remainingDurationSeconds) ?? "--"
+        progressPercent = Int((progress.completedFraction * 100).rounded())
+        routeSummary = distance + " • " + duration + " remaining"
+
+        let snapshot = projectionStore.snapshot()
+        projectionStore.updateRoute(
+            mapImage: snapshot.mapImage,
+            instruction: progress.nextInstruction,
+            destination: destinationName,
+            distance: distance,
+            duration: duration
+        )
+
+        if progress.completedFraction >= 0.98 {
+            status = "Arrived at \(destinationName)"
+        } else if progress.distanceFromRouteMeters > 75 {
+            status = "Off route (\(Int(progress.distanceFromRouteMeters.rounded())) m)"
+            requestReroute(from: location)
+        } else if !isCalculating {
+            status = "Following route · \(progressPercent)%"
+        }
+    }
+
+    private func requestReroute(from location: CLLocation) {
+        guard canReroute, destinationCoordinate != nil, !isCalculating else { return }
+        if let lastRerouteAt, Date().timeIntervalSince(lastRerouteAt) < 20 {
+            return
+        }
+        lastRerouteAt = Date()
+        rerouteTask?.cancel()
+        rerouteTask = Task { [weak self] in
+            await self?.recalculateRoute(from: location)
+        }
+    }
+
+    private func recalculateRoute(from origin: CLLocation) async {
+        guard let destinationCoordinate else { return }
+        isCalculating = true
+        status = "Recalculating route…"
+        defer {
+            isCalculating = false
+            rerouteTask = nil
+        }
+
+        do {
+            let destination = MKMapItem(
+                placemark: MKPlacemark(coordinate: destinationCoordinate)
+            )
+            let candidates: [NavigationRoute]
+            do {
+                candidates = try await routeEngine.routes(
+                    from: origin.coordinate,
+                    to: destinationCoordinate,
+                    alternatives: 3
+                )
+            } catch {
+                candidates = try await mapKitRoutes(from: origin, to: destination)
+            }
+            guard let route = candidates.first else { throw NavigationError.routeNotFound }
+
+            routes = candidates
+            selectedRouteIndex = 0
+            alternativesCount = candidates.count
+            let image = try await renderMap(points: route.points)
+            publish(route: route, image: image, destination: destinationName)
+            status = "Route recalculated"
+        } catch is CancellationError {
+            return
+        } catch {
+            status = "Could not recalculate route"
+        }
+    }
+
+    private func publish(route: NavigationRoute, image: CGImage, destination: String) {
+        let distance = Self.distanceFormatter.string(from: Measurement(
+            value: route.distanceMeters,
+            unit: UnitLength.meters
+        ))
+        let duration = Self.durationFormatter.string(from: route.durationSeconds) ?? "--"
+        progressPercent = 0
+        projectionStore.updateRoute(
+            mapImage: image,
+            instruction: route.firstInstruction,
+            destination: destination,
+            distance: distance,
+            duration: duration
+        )
+        routeSummary = distance + " • " + duration
     }
 
     private func renderMap(points: [RouteCoordinate]) async throws -> CGImage {
