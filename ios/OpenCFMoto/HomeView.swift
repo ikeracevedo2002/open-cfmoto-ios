@@ -1,9 +1,11 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct HomeView: View {
     @EnvironmentObject private var model: AppModel
     @StateObject private var displayProtection = DisplayProtectionController()
     @StateObject private var navigation = NavigationModel()
+    @State private var isGPXImporterPresented = false
 
     var body: some View {
         ZStack {
@@ -67,11 +69,22 @@ struct HomeView: View {
                     }
                     .disabled(navigation.isCalculating || navigation.destinationQuery.isEmpty)
 
+                    Button {
+                        isGPXImporterPresented = true
+                    } label: {
+                        Label("Import GPX route", systemImage: "point.topleft.down.to.point.bottomright.curvepath")
+                    }
+
                     Text(navigation.status)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     if !navigation.routeSummary.isEmpty {
                         LabeledContent("Route", value: navigation.routeSummary)
+                        if navigation.alternativesCount > 1 {
+                            Button("Try next route (\(navigation.alternativesCount) available)") {
+                                navigation.selectNextAlternative()
+                            }
+                        }
                         Button("Clear route", role: .destructive) { navigation.clearRoute() }
                     }
                 }
@@ -173,6 +186,22 @@ struct HomeView: View {
             }
             .navigationTitle("OpenCFMoto")
             .task { navigation.start() }
+            .fileImporter(
+                isPresented: $isGPXImporterPresented,
+                allowedContentTypes: [UTType(filenameExtension: "gpx") ?? .xml]
+            ) { result in
+                guard case .success(let url) = result else { return }
+                let secured = url.startAccessingSecurityScopedResource()
+                defer { if secured { url.stopAccessingSecurityScopedResource() } }
+                do {
+                    navigation.importGPX(
+                        data: try Data(contentsOf: url),
+                        name: url.deletingPathExtension().lastPathComponent
+                    )
+                } catch {
+                    navigation.importGPX(data: Data(), name: "Invalid GPX: \(error.localizedDescription)")
+                }
+            }
             .sheet(isPresented: $model.isScannerPresented) {
                 NavigationStack {
                     QRScannerView(onCode: model.accept)

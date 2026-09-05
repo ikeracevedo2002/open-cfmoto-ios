@@ -81,13 +81,18 @@ final class NavigationModel: NSObject, ObservableObject, CLLocationManagerDelega
     @Published var destinationQuery = ""
     @Published private(set) var status = "No route selected"
     @Published private(set) var routeSummary = ""
+    @Published private(set) var alternativesCount = 0
     @Published private(set) var isCalculating = false
     @Published private(set) var authorizationStatus: CLAuthorizationStatus
 
     private let locationManager = CLLocationManager()
     private let projectionStore = NavigationProjectionStore.shared
+    private let routeEngine: RouteEngine = OSRMRouteEngine()
     private var currentLocation: CLLocation?
     private var calculateWhenLocationArrives = false
+    private var routes: [NavigationRoute] = []
+    private var selectedRouteIndex = 0
+    private var destinationName = ""
 
     override init() {
         authorizationStatus = locationManager.authorizationStatus
@@ -139,32 +144,42 @@ final class NavigationModel: NSObject, ObservableObject, CLLocationManagerDelega
                     throw NavigationError.destinationNotFound
                 }
 
-                let request = MKDirections.Request()
-                request.source = MKMapItem(placemark: MKPlacemark(coordinate: origin.coordinate))
-                request.destination = destination
-                request.transportType = .automobile
-                let response = try await MKDirections(request: request).calculate()
-                guard let route = response.routes.first else { throw NavigationError.routeNotFound }
+                let name = destination.name ?? query
+                let candidates: [NavigationRoute]
+                do {
+                    candidates = try await routeEngine.routes(
+                        from: origin.coordinate,
+                        to: destination.placemark.coordinate,
+                        alternatives: 3
+                    )
+                } catch {
+                    // MapKit remains a useful fallback when the phone has no route-service access.
+                    status = "OSRM unavailable; using Apple route…"
+                    candidates = try await mapKitRoutes(from: origin, to: destination)
+                }
+                guard let route = candidates.first else { throw NavigationError.routeNotFound }
 
-                let image = try await renderMap(route: route)
-                let destinationName = destination.name ?? query
-                let instruction = route.steps.first(where: { !$0.instructions.isEmpty })?.instructions
-                    ?? "Continue on the highlighted route"
+                routes = candidates
+                selectedRouteIndex = 0
+                destinationName = name
+                alternativesCount = candidates.count
+                let image = try await renderMap(points: route.points)
+                let instruction = route.firstInstruction
                 let distance = Self.distanceFormatter.string(from: Measurement(
-                    value: route.distance,
+                    value: route.distanceMeters,
                     unit: UnitLength.meters
                 ))
-                let duration = Self.durationFormatter.string(from: route.expectedTravelTime) ?? "--"
+                let duration = Self.durationFormatter.string(from: route.durationSeconds) ?? "--"
 
                 projectionStore.updateRoute(
                     mapImage: image,
                     instruction: instruction,
-                    destination: destinationName,
+                    destination: name,
                     distance: distance,
                     duration: duration
                 )
                 routeSummary = "\(distance) • \(duration)"
-                status = "Route to \(destinationName) ready"
+                status = "Route to \(name) ready"
             } catch {
                 status = "Route failed: \(error.localizedDescription)"
                 routeSummary = ""
@@ -176,8 +191,75 @@ final class NavigationModel: NSObject, ObservableObject, CLLocationManagerDelega
     func clearRoute() {
         destinationQuery = ""
         routeSummary = ""
+        alternativesCount = 0
+        routes = []
+        selectedRouteIndex = 0
+        destinationName = ""
         status = "No route selected"
         projectionStore.clearRoute()
+    }
+
+    func importGPX(data: Data, name: String) {
+        do {
+            guard let route = try GPXParser.parse(data: data, fallbackName: name).route else {
+                throw GPXParserError.invalidXML("The GPX file has fewer than two route points")
+            }
+            routes = [route]
+            selectedRouteIndex = 0
+            destinationName = name
+            alternativesCount = 1
+            status = "Rendering GPX route…"
+            Task {
+                do {
+                    let image = try await renderMap(points: route.points)
+                    let distance = Self.distanceFormatter.string(from: Measurement(
+                        value: route.distanceMeters,
+                        unit: UnitLength.meters
+                    ))
+                    let duration = Self.durationFormatter.string(from: route.durationSeconds) ?? "--"
+                    projectionStore.updateRoute(
+                        mapImage: image,
+                        instruction: route.firstInstruction,
+                        destination: name,
+                        distance: distance,
+                        duration: duration
+                    )
+                    routeSummary = "\(distance) • \(duration)"
+                    status = "GPX route ready"
+                } catch {
+                    status = "GPX map failed: \(error.localizedDescription)"
+                }
+            }
+        } catch {
+            status = "GPX import failed: \(error.localizedDescription)"
+        }
+    }
+
+    func selectNextAlternative() {
+        guard routes.count > 1 else { return }
+        selectedRouteIndex = (selectedRouteIndex + 1) % routes.count
+        let route = routes[selectedRouteIndex]
+        Task {
+            do {
+                let image = try await renderMap(points: route.points)
+                let distance = Self.distanceFormatter.string(from: Measurement(
+                    value: route.distanceMeters,
+                    unit: UnitLength.meters
+                ))
+                let duration = Self.durationFormatter.string(from: route.durationSeconds) ?? "--"
+                projectionStore.updateRoute(
+                    mapImage: image,
+                    instruction: route.firstInstruction,
+                    destination: destinationName,
+                    distance: distance,
+                    duration: duration
+                )
+                routeSummary = "\(distance) • \(duration)"
+                status = "Alternative \(selectedRouteIndex + 1) of \(routes.count) selected"
+            } catch {
+                status = "Could not render alternative: \(error.localizedDescription)"
+            }
+        }
     }
 
     func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
@@ -206,8 +288,11 @@ final class NavigationModel: NSObject, ObservableObject, CLLocationManagerDelega
         status = "GPS unavailable: \(error.localizedDescription)"
     }
 
-    private func renderMap(route: MKRoute) async throws -> CGImage {
-        let routeRect = route.polyline.boundingMapRect
+    private func renderMap(points: [RouteCoordinate]) async throws -> CGImage {
+        let mapPoints = points.map { MKMapPoint($0.clLocation) }
+        guard let first = mapPoints.first else { throw NavigationError.snapshotFailed }
+        var routeRect = MKMapRect(origin: first, size: .zero)
+        for point in mapPoints.dropFirst() { routeRect = routeRect.union(MKMapRect(origin: point, size: .zero)) }
         let paddingX = max(routeRect.size.width * 0.22, 800)
         let paddingY = max(routeRect.size.height * 0.22, 800)
         let options = MKMapSnapshotter.Options()
@@ -225,17 +310,54 @@ final class NavigationModel: NSObject, ObservableObject, CLLocationManagerDelega
             context.setLineCap(.round)
             context.setLineJoin(.round)
 
-            let points = route.polyline.points()
-            guard route.polyline.pointCount > 0 else { return }
+            guard !mapPoints.isEmpty else { return }
             context.beginPath()
-            context.move(to: snapshot.point(for: points[0].coordinate))
-            for index in 1..<route.polyline.pointCount {
-                context.addLine(to: snapshot.point(for: points[index].coordinate))
+            context.move(to: snapshot.point(for: mapPoints[0].coordinate))
+            for point in mapPoints.dropFirst() {
+                context.addLine(to: snapshot.point(for: point.coordinate))
             }
             context.strokePath()
         }
         guard let cgImage = image.cgImage else { throw NavigationError.snapshotFailed }
         return cgImage
+    }
+
+    private func mapKitRoutes(
+        from origin: CLLocation,
+        to destination: MKMapItem
+    ) async throws -> [NavigationRoute] {
+        let request = MKDirections.Request()
+        request.source = MKMapItem(placemark: MKPlacemark(coordinate: origin.coordinate))
+        request.destination = destination
+        request.transportType = .automobile
+        let response = try await MKDirections(request: request).calculate()
+        return response.routes.compactMap { route in
+            let points = route.polyline.points().prefix(route.polyline.pointCount).map {
+                RouteCoordinate(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude)
+            }
+            guard points.count >= 2 else { return nil }
+            let steps = route.steps.map { step in
+                RouteStep(
+                    maneuverType: "turn",
+                    modifier: nil,
+                    roadName: step.instructions,
+                    maneuver: points.first ?? RouteCoordinate(
+                        latitude: origin.coordinate.latitude,
+                        longitude: origin.coordinate.longitude
+                    ),
+                    distanceMeters: step.distance,
+                    exit: nil,
+                    lanes: nil
+                )
+            }
+            return NavigationRoute(
+                points: points,
+                distanceMeters: route.distance,
+                durationSeconds: route.expectedTravelTime,
+                steps: steps,
+                label: "Apple Maps"
+            )
+        }
     }
 
     private static let distanceFormatter: MeasurementFormatter = {
