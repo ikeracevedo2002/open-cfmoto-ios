@@ -2,8 +2,30 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var model: AppModel
+    @StateObject private var displayProtection = DisplayProtectionController()
 
     var body: some View {
+        ZStack {
+            content
+
+            if displayProtection.shouldBlockTouches {
+                Color.black
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 3) {
+                        displayProtection.restoreDisplay()
+                    }
+                    .accessibilityLabel("Protected display")
+                    .accessibilityHint("Triple tap to restore the phone display")
+                    .accessibilityAction {
+                        displayProtection.restoreDisplay()
+                    }
+                    .zIndex(100)
+            }
+        }
+    }
+
+    private var content: some View {
         NavigationStack {
             List {
                 Section {
@@ -15,12 +37,9 @@ struct HomeView: View {
                             HStack {
                                 Text(model.statusTitle).font(.headline)
                                 if model.isMockMode {
-                                    Text("MOCK")
-                                        .font(.caption2.bold())
-                                        .padding(.horizontal, 6)
-                                        .padding(.vertical, 3)
-                                        .foregroundStyle(.white)
-                                        .background(.orange, in: Capsule())
+                                    modeBadge("MOCK", color: .orange)
+                                } else if model.isMacSimulatorMode {
+                                    modeBadge("MAC", color: .blue)
                                 }
                             }
                             Text(model.bike?.displayName ?? "Scan the QR shown by the dashboard")
@@ -28,6 +47,33 @@ struct HomeView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                }
+
+                Section("Phone display") {
+                    Button {
+                        displayProtection.protectDisplay()
+                    } label: {
+                        Label("Protect and dim phone display", systemImage: "moon.fill")
+                    }
+                    Text("Blocks touches, prevents Auto-Lock, lowers brightness and enables the proximity fallback. Triple-tap the black screen with one finger to restore it.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    Toggle(
+                        "Proximity fallback",
+                        isOn: Binding(
+                            get: { displayProtection.isProximityFallbackEnabled },
+                            set: { displayProtection.setProximityFallback(enabled: $0) }
+                        )
+                    )
+
+                    LabeledContent(
+                        "VoiceOver",
+                        value: displayProtection.isVoiceOverRunning ? "Enabled" : "Disabled"
+                    )
+                    Text("For a truly powered-off panel while the app remains active, enable VoiceOver and use its three-finger triple-tap Screen Curtain gesture. iOS does not let apps activate Screen Curtain automatically.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
                 }
 
                 Section("Connection") {
@@ -56,8 +102,15 @@ struct HomeView: View {
                         }
                         Button("Stop", role: .destructive) { model.stop() }
                     }
+                }
 
 #if DEBUG
+                Section("Development") {
+                    Button {
+                        model.connectToMacSimulator()
+                    } label: {
+                        Label("Connect to Mac EasyConn simulator", systemImage: "laptopcomputer.and.iphone")
+                    }
                     if !model.isMockMode {
                         Button {
                             model.useMockMotorcycle()
@@ -65,8 +118,8 @@ struct HomeView: View {
                             Label("Use motorcycle simulator", systemImage: "motorcycle")
                         }
                     }
-#endif
                 }
+#endif
 
                 if let bike = model.bike {
                     Section(model.isMockMode ? "Simulated bike" : "Bike") {
@@ -107,6 +160,15 @@ struct HomeView: View {
         }
     }
 
+    private func modeBadge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption2.bold())
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .foregroundStyle(.white)
+            .background(color, in: Capsule())
+    }
+
     private var statusIcon: String {
         switch model.state {
         case .idle: return "motorcycle"
@@ -119,7 +181,10 @@ struct HomeView: View {
 
     private var statusColor: Color {
         switch model.state {
-        case .linked: return model.isMockMode ? .orange : .green
+        case .linked:
+            if model.isMockMode { return .orange }
+            if model.isMacSimulatorMode { return .blue }
+            return .green
         case .failed: return .red
         default: return .accentColor
         }

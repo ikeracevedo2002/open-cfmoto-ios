@@ -3,15 +3,17 @@ name: iOS native
 on:
   push:
     branches: [ios-native]
-    paths: ["ios/**", ".github/workflows/ios-native.yml"]
+    paths: ["ios/**", "tools/easyconn-mac-simulator/**", ".github/workflows/ios-native.yml"]
   pull_request:
-    paths: ["ios/**", ".github/workflows/ios-native.yml"]
+    paths: ["ios/**", "tools/easyconn-mac-simulator/**", ".github/workflows/ios-native.yml"]
 
 jobs:
   build:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+      - name: Validate Mac EasyConn simulator
+        run: python3 -m py_compile tools/easyconn-mac-simulator/easyconn_dashboard_simulator.py
       - name: Build for iOS Simulator
         run: |
           xcodebuild \

@@ -50,6 +50,12 @@ release-notes-*.md
 /tools/
 tools/
 
+# Public EasyConn interoperability test harness used by the iOS branch.
+!/tools/
+/tools/*
+!/tools/easyconn-mac-simulator/
+!/tools/easyconn-mac-simulator/**
+
 # Discord ops / MCP setup notes (local only).
 docs/DISCORD-MCP-SETUP.md
 docs/**/*DISCORD*

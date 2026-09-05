@@ -26,12 +26,23 @@ final class AppModel: ObservableObject {
     @Published private(set) var bike: QRCodePayload?
     @Published private(set) var logs: [String] = []
     @Published private(set) var isMockMode = false
+    @Published private(set) var isMacSimulatorMode = false
     @Published var isScannerPresented = false
 
     private var session: MotorcycleSession?
     private var didStart = false
 
     var statusTitle: String {
+        if isMacSimulatorMode {
+            switch state {
+            case .idle: return "Mac dashboard simulator stopped"
+            case .discovering: return "Finding Mac dashboard simulator"
+            case .handshaking: return "Negotiating with Mac simulator"
+            case .linked: return "Mac dashboard simulator linked"
+            case .failed(let message): return message
+            case .awaitingManualWiFi: return "Mac dashboard simulator"
+            }
+        }
         guard isMockMode else { return state.title }
         switch state {
         case .idle: return "Motorcycle simulator stopped"
@@ -60,6 +71,7 @@ final class AppModel: ObservableObject {
         }
         isScannerPresented = false
         isMockMode = false
+        isMacSimulatorMode = false
         bike = payload
         session?.stop()
         session = nil
@@ -85,10 +97,30 @@ final class AppModel: ObservableObject {
         startMockSession()
     }
 
+    func connectToMacSimulator() {
+        session?.stop()
+        isMockMode = false
+        isMacSimulatorMode = true
+        bike = QRCodePayload(
+            ssid: "CURRENT-LAN",
+            password: "",
+            authentication: "Bonjour",
+            macAddress: nil,
+            name: "Mac EasyConn Dashboard Simulator",
+            action: 1,
+            modelID: "MAC-TFT-800x480",
+            serialNumber: "OPENCFMOTO-MAC-SIM",
+            channel: "development"
+        )
+        log("Mac simulator mode selected; keep the Mac and iPhone on the same Wi-Fi")
+        startRealSession()
+    }
+
     func useRealMotorcycle() {
         session?.stop()
         session = nil
         isMockMode = false
+        isMacSimulatorMode = false
         bike = nil
         state = .idle
         log("Real motorcycle mode selected")
@@ -98,7 +130,13 @@ final class AppModel: ObservableObject {
         session?.stop()
         session = nil
         state = .idle
-        log(isMockMode ? "Motorcycle simulator stopped" : "Stopped")
+        if isMockMode {
+            log("Motorcycle simulator stopped")
+        } else if isMacSimulatorMode {
+            log("Mac dashboard simulator stopped")
+        } else {
+            log("Stopped")
+        }
     }
 
     private func startRealSession() {
@@ -117,6 +155,7 @@ final class AppModel: ObservableObject {
     private func startMockSession() {
         session?.stop()
         isMockMode = true
+        isMacSimulatorMode = false
         bike = QRCodePayload(
             ssid: "OPENCFMOTO-MOCK",
             password: "",
