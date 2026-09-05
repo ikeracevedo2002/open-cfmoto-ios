@@ -4,7 +4,7 @@ import Foundation
 final class AppModel: ObservableObject {
     enum State: Equatable {
         case idle
-        case joiningWiFi(String)
+        case awaitingManualWiFi(String)
         case discovering
         case handshaking
         case linked
@@ -13,7 +13,7 @@ final class AppModel: ObservableObject {
         var title: String {
             switch self {
             case .idle: return "Ready"
-            case .joiningWiFi(let ssid): return "Joining \(ssid)"
+            case .awaitingManualWiFi(let ssid): return "Connect to \(ssid)"
             case .discovering: return "Finding dashboard"
             case .handshaking: return "Negotiating EasyConn"
             case .linked: return "Dashboard linked"
@@ -36,12 +36,20 @@ final class AppModel: ObservableObject {
         }
         isScannerPresented = false
         bike = payload
-        connect(payload)
+        session?.stop()
+        session = nil
+        state = .awaitingManualWiFi(payload.ssid)
+        log("Pairing QR accepted: \(payload.displayName)")
+        log("Open Settings > Wi-Fi and join \(payload.ssid), then return to OpenCFMoto")
     }
 
     func reconnect() {
-        guard let bike else { return }
-        connect(bike)
+        guard bike != nil else { return }
+        startSession()
+    }
+
+    func continueAfterManualWiFi() {
+        startSession()
     }
 
     func stop() {
@@ -51,26 +59,16 @@ final class AppModel: ObservableObject {
         log("Stopped")
     }
 
-    private func connect(_ payload: QRCodePayload) {
-        stop()
-        state = .joiningWiFi(payload.ssid)
-        log("Pairing QR accepted: \(payload.displayName)")
+    private func startSession() {
+        session?.stop()
+        state = .discovering
+        log("Browsing _EasyConn._tcp on the current Wi-Fi network")
 
-        Task {
-            do {
-                try await WiFiJoiner.join(payload)
-                state = .discovering
-                log("Wi-Fi joined; browsing _EasyConn._tcp")
-
-                let newSession = EasyConnSession { [weak self] event in
-                    Task { @MainActor in self?.consume(event) }
-                }
-                session = newSession
-                newSession.start()
-            } catch {
-                fail(error.localizedDescription)
-            }
+        let newSession = EasyConnSession { [weak self] event in
+            Task { @MainActor in self?.consume(event) }
         }
+        session = newSession
+        newSession.start()
     }
 
     private func consume(_ event: EasyConnSession.Event) {

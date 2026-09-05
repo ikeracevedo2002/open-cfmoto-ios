@@ -8,7 +8,7 @@ Android remains on `main`. The independent native implementation lives on `ios-n
 The branch contains an iOS 17+ SwiftUI application that can:
 
 - scan Carbit/EasyConnect, CARBIT token, Moto Morini and Thinkerride pairing QR formats;
-- join a dashboard SoftAP with `NEHotspotConfiguration`;
+- guide the rider through manually joining the dashboard SoftAP, which works with a free Personal Team;
 - request local-network access and discover `_EasyConn._tcp` with Network.framework;
 - listen for dashboard callbacks on TCP ports 10920, 10921 and 10922;
 - encode/decode the 16-byte little-endian PXC control frame;
@@ -24,11 +24,15 @@ tested on real CFMoto hardware.
 1. Open `ios/OpenCFMoto.xcodeproj` in Xcode 26 or newer.
 2. Select your Apple development team for the `OpenCFMoto` target.
 3. Use an actual iPhone. The simulator cannot join the motorcycle Wi-Fi network or scan its QR.
-4. Build and run, tap **Scan bike QR**, and accept Camera, Local Network and Wi-Fi prompts.
+4. Build and run, tap **Scan bike QR**, and accept the Camera and Local Network prompts.
+5. Open iOS Settings → Wi-Fi, join the SSID displayed by OpenCFMoto, return to the app and tap
+   **I joined the bike Wi-Fi**.
 
-The target enables the Hotspot Configuration capability. No CarPlay entitlement is included: Apple
-must approve the appropriate CarPlay application category before an App Store build can expose a
-CarPlay scene. The EasyConn link can be developed and tested independently from that entitlement.
+The project deliberately does not enable Hotspot Configuration because Apple does not allow that
+capability for free Personal Team provisioning profiles. A paid Apple Developer team can add it later
+to automate SoftAP joining. No CarPlay entitlement is included: Apple must approve the appropriate
+CarPlay application category before an App Store build can expose a CarPlay scene. The EasyConn link
+can be developed and tested independently from that entitlement.
 
 ## Porting roadmap
 

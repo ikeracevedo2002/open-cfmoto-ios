@@ -28,7 +28,15 @@ struct HomeView: View {
                     }
 
                     if model.bike != nil {
-                        Button("Reconnect") { model.reconnect() }
+                        if case .awaitingManualWiFi = model.state {
+                            Text("Open Settings → Wi-Fi, join the network shown below, then return here.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Button("I joined the bike Wi-Fi") { model.continueAfterManualWiFi() }
+                                .buttonStyle(.borderedProminent)
+                        } else {
+                            Button("Reconnect") { model.reconnect() }
+                        }
                         Button("Stop", role: .destructive) { model.stop() }
                     }
                 }
@@ -36,6 +44,10 @@ struct HomeView: View {
                 if let bike = model.bike {
                     Section("Bike") {
                         LabeledContent("Wi-Fi", value: bike.ssid)
+                        if !bike.password.isEmpty {
+                            LabeledContent("Password", value: bike.password)
+                                .textSelection(.enabled)
+                        }
                         LabeledContent("Model", value: bike.modelID ?? "Unknown")
                         LabeledContent("Transport", value: bike.transportDescription)
                     }
@@ -71,7 +83,8 @@ struct HomeView: View {
     private var statusIcon: String {
         switch model.state {
         case .idle: return "motorcycle"
-        case .joiningWiFi, .discovering, .handshaking: return "antenna.radiowaves.left.and.right"
+        case .awaitingManualWiFi: return "wifi"
+        case .discovering, .handshaking: return "antenna.radiowaves.left.and.right"
         case .linked: return "checkmark.circle.fill"
         case .failed: return "exclamationmark.triangle.fill"
         }
