@@ -148,7 +148,8 @@ def capture_media(
 
             received = 0
             with output.open("wb") as capture:
-                for frame_index in range(frame_count):
+                frame_index = 0
+                while frame_count <= 0 or frame_index < frame_count:
                     if touch_demo and frame_index == 4:
                         send_touch(control, 2, int(width * 0.64), int(height * 0.82))
                     elif touch_demo and 5 <= frame_index <= 9:
@@ -162,13 +163,14 @@ def capture_media(
                         frame_size = struct.unpack("<I", recv_exact(data, 4))[0]
                         frame = recv_exact(data, frame_size)
                     except socket.timeout:
-                        log("No H.264 frame returned. Control/media negotiation works; iOS video encoding is the next milestone.")
+                        log("No H.264 frame returned; stopping media capture.")
                         break
                     if not frame.startswith((b"\x00\x00\x00\x01", b"\x00\x00\x01")):
                         raise ValueError("iPhone returned a frame that is not Annex-B H.264")
                     capture.write(frame)
                     received += 1
                     log(f"H.264 frame {received}: {len(frame)} bytes")
+                    frame_index += 1
 
             if received:
                 log(f"Saved {received} Annex-B H.264 frames to {output}")
@@ -193,7 +195,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Use a Mac as an EasyConn dashboard for OpenCFMoto iOS")
     parser.add_argument("--width", type=int, default=800)
     parser.add_argument("--height", type=int, default=480)
-    parser.add_argument("--frames", type=int, default=30)
+    parser.add_argument(
+        "--frames",
+        type=int,
+        default=300,
+        help="number of frames to request; use 0 to stream until Control-C (default: 300)",
+    )
     parser.add_argument("--output", type=Path, default=Path("easyconn-capture.h264"))
     parser.add_argument(
         "--skip-touch-demo",
