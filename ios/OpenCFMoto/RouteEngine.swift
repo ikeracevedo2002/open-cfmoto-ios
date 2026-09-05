@@ -27,19 +27,19 @@ struct RouteStep: Codable, Equatable {
     var instruction: String {
         let direction = modifier?.replacingOccurrences(of: "-", with: " ") ?? ""
         switch maneuverType {
-        case "depart": return roadName.isEmpty ? "Start navigation" : "Take (roadName)"
+        case "depart": return roadName.isEmpty ? "Start navigation" : "Take " + roadName
         case "arrive": return "You have arrived"
         case "gpx": return "Follow the imported GPX route"
         case "roundabout", "rotary":
-            if let exit { return "Take exit (exit) at the roundabout" }
+            if let exit { return "Take exit " + String(exit) + " at the roundabout" }
             return "Enter the roundabout"
-        case "merge": return roadName.isEmpty ? "Merge (direction)" : "Merge (direction) onto (roadName)"
-        case "fork": return roadName.isEmpty ? "Keep (direction) at the fork" : "Keep (direction) onto (roadName)"
+        case "merge": return roadName.isEmpty ? "Merge " + direction : "Merge " + direction + " onto " + roadName
+        case "fork": return roadName.isEmpty ? "Keep " + direction + " at the fork" : "Keep " + direction + " onto " + roadName
         case "turn", "on ramp", "off ramp", "new name":
-            if roadName.isEmpty { return "Turn (direction)" }
-            return "Turn (direction) onto (roadName)"
+            if roadName.isEmpty { return "Turn " + direction }
+            return "Turn " + direction + " onto " + roadName
         default:
-            return roadName.isEmpty ? "Continue ahead" : "Continue on (roadName)"
+            return roadName.isEmpty ? "Continue ahead" : "Continue on " + roadName
         }
     }
 }

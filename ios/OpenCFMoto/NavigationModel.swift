@@ -77,7 +77,7 @@ final class NavigationProjectionStore: @unchecked Sendable {
 }
 
 @MainActor
-final class NavigationModel: NSObject, ObservableObject, CLLocationManagerDelegate {
+final class NavigationModel: NSObject, ObservableObject, @preconcurrency CLLocationManagerDelegate {
     @Published var destinationQuery = ""
     @Published private(set) var status = "No route selected"
     @Published private(set) var routeSummary = ""
@@ -291,8 +291,11 @@ final class NavigationModel: NSObject, ObservableObject, CLLocationManagerDelega
     private func renderMap(points: [RouteCoordinate]) async throws -> CGImage {
         let mapPoints = points.map { MKMapPoint($0.clLocation) }
         guard let first = mapPoints.first else { throw NavigationError.snapshotFailed }
-        var routeRect = MKMapRect(origin: first, size: .zero)
-        for point in mapPoints.dropFirst() { routeRect = routeRect.union(MKMapRect(origin: point, size: .zero)) }
+        let emptySize = MKMapSize(width: 0, height: 0)
+        var routeRect = MKMapRect(origin: first, size: emptySize)
+        for point in mapPoints.dropFirst() {
+            routeRect = routeRect.union(MKMapRect(origin: point, size: emptySize))
+        }
         let paddingX = max(routeRect.size.width * 0.22, 800)
         let paddingY = max(routeRect.size.height * 0.22, 800)
         let options = MKMapSnapshotter.Options()
@@ -332,8 +335,13 @@ final class NavigationModel: NSObject, ObservableObject, CLLocationManagerDelega
         request.transportType = .automobile
         let response = try await MKDirections(request: request).calculate()
         return response.routes.compactMap { route in
-            let points = route.polyline.points().prefix(route.polyline.pointCount).map {
-                RouteCoordinate(latitude: $0.coordinate.latitude, longitude: $0.coordinate.longitude)
+            let rawPoints = route.polyline.points()
+            let points = (0..<route.polyline.pointCount).map { index in
+                let point = rawPoints[index]
+                return RouteCoordinate(
+                    latitude: point.coordinate.latitude,
+                    longitude: point.coordinate.longitude
+                )
             }
             guard points.count >= 2 else { return nil }
             let steps = route.steps.map { step in
