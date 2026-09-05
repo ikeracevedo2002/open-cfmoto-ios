@@ -19,8 +19,8 @@ enum WiFiJoiner {
 
         try await withCheckedThrowingContinuation { continuation in
             NEHotspotConfigurationManager.shared.apply(configuration) { error in
-                if let error = error as? NEHotspotConfigurationError,
-                   error.code == .alreadyAssociated {
+                if let error,
+                   (error as NSError).code == NEHotspotConfigurationError.alreadyAssociated.rawValue {
                     continuation.resume()
                 } else if let error {
                     continuation.resume(throwing: error)
