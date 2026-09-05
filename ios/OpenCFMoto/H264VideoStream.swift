@@ -1,5 +1,6 @@
 import CoreGraphics
 import CoreMedia
+import CoreText
 import CoreVideo
 import Foundation
 import VideoToolbox
@@ -116,8 +117,11 @@ final class H264VideoStream {
             interaction.isTouching = true
         case .up:
             interaction.isTouching = false
-            if normalisedY >= 0.70 {
-                interaction.selectedAction = min(2, max(0, Int(normalisedX * 3)))
+            if normalisedY >= 0.70, normalisedX >= 0.60 {
+                interaction.selectedAction = min(
+                    2,
+                    max(0, Int(((normalisedX - 0.60) / 0.40) * 3))
+                )
             }
         }
         frameLock.unlock()
@@ -396,6 +400,7 @@ private enum ProjectionFrameRenderer {
             space: colorSpace,
             bitmapInfo: bitmapInfo
         ) else { return }
+        let navigation = NavigationProjectionStore.shared.snapshot()
 
         context.setFillColor(CGColor(red: 0.025, green: 0.055, blue: 0.085, alpha: 1))
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
@@ -411,36 +416,117 @@ private enum ProjectionFrameRenderer {
         context.fill(panel)
 
         let centerX = CGFloat(width) / 2
-        context.beginPath()
-        context.move(to: CGPoint(x: centerX - CGFloat(width) * 0.22, y: 0))
-        context.addLine(to: CGPoint(x: centerX - CGFloat(width) * 0.075, y: CGFloat(height)))
-        context.addLine(to: CGPoint(x: centerX + CGFloat(width) * 0.075, y: CGFloat(height)))
-        context.addLine(to: CGPoint(x: centerX + CGFloat(width) * 0.22, y: 0))
-        context.closePath()
-        context.setFillColor(CGColor(red: 0.12, green: 0.15, blue: 0.17, alpha: 1))
-        context.fillPath()
+        if let mapImage = navigation.mapImage {
+            let mapScale: CGFloat = interaction.selectedAction == 0
+                ? 0.86 : (interaction.selectedAction == 2 ? 1.28 : 1)
+            let mapRect = CGRect(
+                x: panel.midX - panel.width * mapScale / 2,
+                y: panel.midY - panel.height * mapScale / 2,
+                width: panel.width * mapScale,
+                height: panel.height * mapScale
+            )
+            context.saveGState()
+            context.clip(to: panel)
+            context.draw(mapImage, in: mapRect)
+            context.restoreGState()
+        } else {
+            context.beginPath()
+            context.move(to: CGPoint(x: centerX - CGFloat(width) * 0.22, y: 0))
+            context.addLine(to: CGPoint(x: centerX - CGFloat(width) * 0.075, y: CGFloat(height)))
+            context.addLine(to: CGPoint(x: centerX + CGFloat(width) * 0.075, y: CGFloat(height)))
+            context.addLine(to: CGPoint(x: centerX + CGFloat(width) * 0.22, y: 0))
+            context.closePath()
+            context.setFillColor(CGColor(red: 0.12, green: 0.15, blue: 0.17, alpha: 1))
+            context.fillPath()
 
-        context.setStrokeColor(CGColor(red: 0.2, green: 0.85, blue: 0.73, alpha: 1))
-        context.setLineWidth(max(3, CGFloat(width) * 0.008))
-        context.setLineDash(phase: CGFloat(frame % 40), lengths: [24, 18])
-        context.move(to: CGPoint(x: centerX, y: 0))
-        context.addLine(to: CGPoint(x: centerX, y: CGFloat(height)))
-        context.strokePath()
-        context.setLineDash(phase: 0, lengths: [])
+            context.setStrokeColor(CGColor(red: 0.2, green: 0.85, blue: 0.73, alpha: 1))
+            context.setLineWidth(max(3, CGFloat(width) * 0.008))
+            context.setLineDash(phase: CGFloat(frame % 40), lengths: [24, 18])
+            context.move(to: CGPoint(x: centerX, y: 0))
+            context.addLine(to: CGPoint(x: centerX, y: CGFloat(height)))
+            context.strokePath()
+            context.setLineDash(phase: 0, lengths: [])
 
-        let progress = CGFloat(frame % 150) / 149
-        let markerY = CGFloat(height) * (0.18 + progress * 0.64)
-        let markerRadius = max(10, CGFloat(width) * 0.025)
-        context.setFillColor(CGColor(red: 1, green: 0.48, blue: 0.12, alpha: 1))
-        context.fillEllipse(in: CGRect(
-            x: centerX - markerRadius,
-            y: markerY - markerRadius,
-            width: markerRadius * 2,
-            height: markerRadius * 2
+            let progress = CGFloat(frame % 150) / 149
+            let markerY = CGFloat(height) * (0.18 + progress * 0.64)
+            let markerRadius = max(10, CGFloat(width) * 0.025)
+            context.setFillColor(CGColor(red: 1, green: 0.48, blue: 0.12, alpha: 1))
+            context.fillEllipse(in: CGRect(
+                x: centerX - markerRadius,
+                y: markerY - markerRadius,
+                width: markerRadius * 2,
+                height: markerRadius * 2
+            ))
+        }
+
+        context.setFillColor(CGColor(red: 0.02, green: 0.04, blue: 0.06, alpha: 0.88))
+        context.fill(CGRect(
+            x: panel.minX,
+            y: panel.maxY - CGFloat(height) * 0.19,
+            width: panel.width,
+            height: CGFloat(height) * 0.19
         ))
+        drawText(
+            navigation.instruction,
+            in: CGRect(
+                x: panel.minX + margin * 0.45,
+                y: panel.maxY - CGFloat(height) * 0.165,
+                width: panel.width * 0.72,
+                height: CGFloat(height) * 0.12
+            ),
+            size: CGFloat(height) * 0.057,
+            color: CGColor(gray: 1, alpha: 1),
+            context: context
+        )
+        drawText(
+            "\(navigation.speedKPH) km/h",
+            in: CGRect(
+                x: panel.maxX - panel.width * 0.22,
+                y: panel.maxY - CGFloat(height) * 0.15,
+                width: panel.width * 0.19,
+                height: CGFloat(height) * 0.1
+            ),
+            size: CGFloat(height) * 0.052,
+            color: CGColor(red: 0.2, green: 0.9, blue: 0.72, alpha: 1),
+            context: context
+        )
 
-        let actionGap = CGFloat(width) * 0.025
-        let actionWidth = (panel.width - actionGap * 4) / 3
+        context.setFillColor(CGColor(red: 0.02, green: 0.04, blue: 0.06, alpha: 0.9))
+        context.fill(CGRect(
+            x: panel.minX,
+            y: panel.minY,
+            width: panel.width,
+            height: CGFloat(height) * 0.19
+        ))
+        drawText(
+            navigation.destination,
+            in: CGRect(
+                x: panel.minX + margin * 0.45,
+                y: panel.minY + CGFloat(height) * 0.105,
+                width: panel.width * 0.54,
+                height: CGFloat(height) * 0.06
+            ),
+            size: CGFloat(height) * 0.037,
+            color: CGColor(gray: 0.93, alpha: 1),
+            context: context
+        )
+        drawText(
+            "\(navigation.distance)  •  \(navigation.duration)",
+            in: CGRect(
+                x: panel.minX + margin * 0.45,
+                y: panel.minY + CGFloat(height) * 0.045,
+                width: panel.width * 0.54,
+                height: CGFloat(height) * 0.05
+            ),
+            size: CGFloat(height) * 0.031,
+            color: CGColor(gray: 0.72, alpha: 1),
+            context: context
+        )
+
+        let actionGap = CGFloat(width) * 0.012
+        let actionAreaX = panel.minX + panel.width * 0.61
+        let actionAreaWidth = panel.width * 0.37
+        let actionWidth = (actionAreaWidth - actionGap * 4) / 3
         let actionHeight = CGFloat(height) * 0.12
         for index in 0..<3 {
             let selected = index == interaction.selectedAction
@@ -448,7 +534,7 @@ private enum ProjectionFrameRenderer {
                 ? CGColor(red: 0.12, green: 0.68, blue: 0.35, alpha: 1)
                 : CGColor(red: 0.14, green: 0.22, blue: 0.27, alpha: 1))
             context.fill(CGRect(
-                x: panel.minX + actionGap + CGFloat(index) * (actionWidth + actionGap),
+                x: actionAreaX + actionGap + CGFloat(index) * (actionWidth + actionGap),
                 y: panel.minY + actionGap,
                 width: actionWidth,
                 height: actionHeight
@@ -465,5 +551,33 @@ private enum ProjectionFrameRenderer {
             width: touchRadius * 2,
             height: touchRadius * 2
         ))
+    }
+
+    private static func drawText(
+        _ text: String,
+        in rect: CGRect,
+        size: CGFloat,
+        color: CGColor,
+        context: CGContext
+    ) {
+        let font = CTFontCreateWithName("Helvetica-Bold" as CFString, size, nil)
+        let attributes = [
+            kCTFontAttributeName: font,
+            kCTForegroundColorAttributeName: color,
+        ] as CFDictionary
+        guard let attributed = CFAttributedStringCreate(
+            kCFAllocatorDefault,
+            text as CFString,
+            attributes
+        ) else { return }
+        let framesetter = CTFramesetterCreateWithAttributedString(attributed)
+        let path = CGPath(rect: rect, transform: nil)
+        let textFrame = CTFramesetterCreateFrame(
+            framesetter,
+            CFRange(location: 0, length: 0),
+            path,
+            nil
+        )
+        CTFrameDraw(textFrame, context)
     }
 }

@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject private var model: AppModel
     @StateObject private var displayProtection = DisplayProtectionController()
+    @StateObject private var navigation = NavigationModel()
 
     var body: some View {
         ZStack {
@@ -46,6 +47,32 @@ struct HomeView: View {
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
                         }
+                    }
+                }
+
+                Section("Navigation") {
+                    TextField("Destination, address or place", text: $navigation.destinationQuery)
+                        .textInputAutocapitalization(.words)
+                        .submitLabel(.route)
+                        .onSubmit { navigation.calculateRoute() }
+
+                    Button {
+                        navigation.calculateRoute()
+                    } label: {
+                        if navigation.isCalculating {
+                            Label("Calculating route…", systemImage: "hourglass")
+                        } else {
+                            Label("Project route", systemImage: "map.fill")
+                        }
+                    }
+                    .disabled(navigation.isCalculating || navigation.destinationQuery.isEmpty)
+
+                    Text(navigation.status)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    if !navigation.routeSummary.isEmpty {
+                        LabeledContent("Route", value: navigation.routeSummary)
+                        Button("Clear route", role: .destructive) { navigation.clearRoute() }
                     }
                 }
 
@@ -145,6 +172,7 @@ struct HomeView: View {
                 }
             }
             .navigationTitle("OpenCFMoto")
+            .task { navigation.start() }
             .sheet(isPresented: $model.isScannerPresented) {
                 NavigationStack {
                     QRScannerView(onCode: model.accept)

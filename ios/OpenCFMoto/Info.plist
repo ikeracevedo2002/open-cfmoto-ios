@@ -30,6 +30,8 @@
 	<string>OpenCFMoto scans the pairing QR shown by your motorcycle dashboard.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>OpenCFMoto communicates directly with your motorcycle dashboard over its local Wi-Fi network.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>OpenCFMoto uses your location to calculate and project motorcycle navigation routes.</string>
 	<key>UILaunchScreen</key>
 	<dict/>
 	<key>UISupportedInterfaceOrientations</key>

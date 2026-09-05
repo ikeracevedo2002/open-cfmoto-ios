@@ -150,13 +150,13 @@ def capture_media(
             with output.open("wb") as capture:
                 for frame_index in range(frame_count):
                     if touch_demo and frame_index == 4:
-                        send_touch(control, 2, int(width * 0.15), int(height * 0.82))
+                        send_touch(control, 2, int(width * 0.64), int(height * 0.82))
                     elif touch_demo and 5 <= frame_index <= 9:
                         progress = (frame_index - 5) / 4
-                        x = int(width * (0.15 + progress * 0.70))
+                        x = int(width * (0.64 + progress * 0.30))
                         send_touch(control, 3, x, int(height * 0.82))
                     elif touch_demo and frame_index == 10:
-                        send_touch(control, 1, int(width * 0.85), int(height * 0.82))
+                        send_touch(control, 1, int(width * 0.94), int(height * 0.82))
                     data.sendall(media_frame(114))
                     try:
                         frame_size = struct.unpack("<I", recv_exact(data, 4))[0]

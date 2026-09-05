@@ -16,6 +16,8 @@ The branch contains an iOS 17+ SwiftUI application that can:
 - encode an app-owned animated projection surface as Baseline H.264 with VideoToolbox and serve
   Annex-B access units when the dashboard sends media command 114;
 - parse EasyConn touchscreen DOWN/MOVE/UP messages and apply them to the projected surface;
+- search destinations, calculate driving routes and render Apple MapKit route snapshots with live
+  GPS speed into the EasyConn H.264 projection;
 - show a live diagnostic log on the phone.
 
 This is a transport/video milestone, not a production release. Touch/button input, a real navigation
@@ -41,8 +43,8 @@ can be developed and tested independently from that entitlement.
 
 1. Capture a successful control/media negotiation from an iPhone and compare it with Android logs.
 2. Implement the RSA/HUID exchange with Security.framework after validating the expected iOS wire format.
-3. Replace the animated H.264 test surface with the app's navigation compositor.
-4. Route the validated dashboard touch events into the real iOS navigation UI and port handlebar input.
+3. Advance route instructions as GPS progress changes and add off-route recalculation.
+4. Route the validated dashboard touch events into MapKit navigation controls and port handlebar input.
 5. Port bike profiles, reconnect policy, GPX/trip storage, MapLibre and offline routing.
 6. Request Apple's navigation/CarPlay entitlement and add the approved CarPlay scene.
 
